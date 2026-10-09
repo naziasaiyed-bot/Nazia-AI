@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Salescast — sales forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#EDF1F0; --surface:#FFFFFF; --surface-2:#F5F7F6; --ink:#15233B; --ink-2:#4F5E73; --line:#D4DCD9;
+  --accent:#2B54D8; --accent-ink:#FFFFFF; --soft:rgba(43,84,216,.12); --soft2:rgba(43,84,216,.24);
+  --good:#1F7A55; --bad:#B4432F; --warn:#A86E12; --hist:#15233B;
+  --radius-lg:14px; --radius-sm:6px;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1522; --surface:#152033; --surface-2:#1A2740; --ink:#E5EBF4; --ink-2:#9DAEC6; --line:#283853;
+    --accent:#7F9CFF; --accent-ink:#0E1522; --soft:rgba(127,156,255,.14); --soft2:rgba(127,156,255,.28);
+    --good:#4DC48C; --bad:#F08B74; --warn:#E2B04A; --hist:#E5EBF4; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1522; --surface:#152033; --surface-2:#1A2740; --ink:#E5EBF4; --ink-2:#9DAEC6; --line:#283853;
+  --accent:#7F9CFF; --accent-ink:#0E1522; --soft:rgba(127,156,255,.14); --soft2:rgba(127,156,255,.28);
+  --good:#4DC48C; --bad:#F08B74; --warn:#E2B04A; --hist:#E5EBF4; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:-.01em;line-height:1.15;margin:0}
+h2{font-size:1.35rem}
+h3{font-size:1.02rem;font-weight:700}
+p{margin:0 0 .6em}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:1.2rem}
+.brand svg{width:28px;height:28px}
+.top-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:999px;cursor:pointer;font-weight:600;font-size:.9rem}
+.btn:hover{border-color:var(--ink-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.small{padding:5px 11px;font-size:.82rem}
+select,input[type=number],input[type=text],textarea{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 9px;max-width:100%}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--ink-2);font-weight:600;min-width:0}
+label.f select,label.f input{color:var(--ink);font-weight:400;font-size:.92rem}
+.muted{color:var(--ink-2)}
+.small{font-size:.85rem}
+
+/* start */
+.start{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:40px;align-items:center;padding:36px 0 56px}
+.start h1{font-size:clamp(2rem,4.4vw,3.3rem);max-width:13ch;margin-bottom:18px}
+.start .lede{font-size:1.06rem;color:var(--ink-2);max-width:52ch}
+.drop{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--surface);border:1.5px dashed var(--ink-2);border-radius:var(--radius-lg);padding:26px;cursor:pointer;position:relative;overflow:hidden}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop svg.fan{width:100%;height:auto;margin-bottom:10px}
+.drop strong{font-family:var(--display);font-size:1.25rem}
+.formats{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.formats span{font-size:.78rem;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+.start-alt{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.paste{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.paste textarea{width:100%;min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem}
+.msg{min-height:1.2em;margin-top:12px;font-weight:600}
+.msg.err{color:var(--bad)}
+.tips{margin-top:16px;color:var(--ink-2);font-size:.9rem}
+.tips summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.tips ul{padding-left:18px;margin:8px 0 0}
+
+/* app */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px}
+.source{display:flex;flex-direction:column;gap:14px;margin-bottom:16px}
+.source-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.source-head .file{font-weight:700;font-size:1.05rem;word-break:break-all}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.check{display:flex;gap:8px;align-items:center;font-size:.86rem;color:var(--ink-2);font-weight:600}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:18px;scrollbar-width:none}
+.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;font-weight:600;color:var(--ink-2);border-bottom:2.5px solid transparent;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel[hidden]{display:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);overflow:hidden;margin-bottom:16px}
+.kpi{padding:14px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -1px -1px 0}
+.kpi .v{font-family:var(--display);font-size:1.5rem;font-weight:700;line-height:1.2}
+.kpi .l{font-size:.82rem;color:var(--ink-2);font-weight:600}
+.kpi .d{font-size:.82rem;font-weight:600}
+.up{color:var(--good)} .down{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.chartbox{position:relative;height:300px}
+.chartbox.tall{height:400px}
+.chartbox.short{height:240px}
+.card h3{margin-bottom:4px}
+.card .sub{font-size:.85rem;color:var(--ink-2);margin-bottom:12px}
+.insights{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.insights li{padding-left:16px;border-left:3px solid var(--line);max-width:78ch}
+.insights li.hi{border-left-color:var(--accent)}
+.tablewrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--ink-2);font-size:.8rem}
+td.n,th.n{text-align:right}
+tr.sel td{background:var(--soft)}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--surface-2)}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--soft2);color:var(--ink)}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;align-items:end}
+.range-row{display:flex;align-items:center;gap:10px}
+.range-row input{flex:1;accent-color:var(--accent)}
+.range-row output{min-width:4.5ch;font-weight:700;color:var(--ink)}
+.fcsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;border-top:1px solid var(--line);margin-top:14px}
+.fcsum > div{padding:12px 4px 0}
+.fcsum .v{font-family:var(--display);font-size:1.35rem;font-weight:700}
+.fcsum .l{font-size:.8rem;color:var(--ink-2);font-weight:600}
+.legend-note{font-size:.82rem;color:var(--ink-2);margin-top:8px}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.q{background:var(--surface-2);border-radius:10px;padding:12px}
+.q .v{font-family:var(--display);font-size:1.3rem;font-weight:700}
+.q .l{font-size:.8rem;color:var(--ink-2);font-weight:600}
+.q.warn .v{color:var(--warn)}
+.empty{padding:28px;text-align:left;color:var(--ink-2)}
+.ai-out{margin-top:12px;max-width:80ch}
+.ai-out h4{font-family:var(--display);margin:14px 0 4px;font-size:1rem}
+.ai-out ul{padding-left:20px;margin:4px 0 10px}
+.ask{display:flex;gap:8px;flex-wrap:wrap}
+.ask input{flex:1;min-width:200px}
+.busy{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 70%,transparent);z-index:50}
+.busy[hidden]{display:none}
+.busy .box{background:var(--surface);border:1px solid var(--line);padding:16px 22px;border-radius:12px;font-weight:600;display:flex;gap:12px;align-items:center}
+.spin{width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation-duration:3s}}
+
+/* report sheet: always paper */
+.report-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.sheet{background:#fff;color:#15233B;border-radius:6px;padding:40px clamp(18px,5vw,56px);border:1px solid var(--line);max-width:900px;margin:0 auto;color-scheme:light}
+.sheet h1{font-size:2rem;margin-bottom:6px}
+.sheet h2{font-size:1.2rem;margin:28px 0 8px;padding-top:14px;border-top:1px solid #DCE2E0}
+.sheet p,.sheet li{max-width:75ch}
+.sheet .meta{color:#4F5E73;font-size:.88rem}
+.sheet table th{color:#4F5E73}
+.sheet th,.sheet td{border-bottom-color:#E3E8E6}
+.sheet .chartbox{height:300px}
+.sheet .kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:8px}
+.sheet .kgrid div{background:#F3F6F5;border-radius:8px;padding:10px 12px}
+.sheet .kgrid b{display:block;font-family:var(--display);font-size:1.2rem}
+.sheet .kgrid span{font-size:.78rem;color:#4F5E73;font-weight:600}
+
+@media (max-width:860px){
+  .start{grid-template-columns:1fr;gap:26px;padding-top:12px}
+  .grid2{grid-template-columns:1fr}
+  .chartbox.tall{height:320px}
+}
+@media print{
+  body{background:#fff}
+  .top,.source,.tabs,.report-actions,#p-overview,#p-forecast,#p-breakdown,#p-data{display:none!important}
+  #p-report{display:block!important}
+  .sheet{border:0;padding:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--ink)"/><path d="M6 22 L12 17 L16 19 L20 12" stroke="var(--bg)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12 L26 8 L26 15 Z" fill="var(--accent)" opacity=".9"/></svg>
+      Salescast
+    </div>
+    <div class="top-actions" id="topActions" hidden>
+      <label class="check">Currency
+        <select id="currency" aria-label="Currency">
+          <option value="">None</option><option value="₹">₹ Rupee</option><option value="$">$ Dollar</option><option value="€">€ Euro</option><option value="£">£ Pound</option>
+        </select>
+      </label>
+      <button class="btn" id="newFile" type="button">Load another file</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="start" class="start">
+      <div>
+        <h1>Forecast your sales from the files you already have</h1>
+        <p class="lede">Upload a spreadsheet, CSV, JSON or PDF that has dates and sales figures. Salescast finds the right columns, studies trend, seasonality and outliers, tests ten forecasting models against your own history, and builds a report you can download.</p>
+        <details class="tips">
+          <summary>What makes a good file</summary>
+          <ul>
+            <li>One row per sale, day or month, with a date column and an amount column. A product, region or channel column unlocks the breakdown.</li>
+            <li>Wide tables also work, such as one row per product with a column for each month.</li>
+            <li>At least 2 full years of monthly data, or a few months of daily data, lets the tool learn seasonality.</li>
+            <li>For PDFs, text-based reports work best. Scanned images can't be read.</li>
+          </ul>
+        </details>
+      </div>
+      <div>
+        <label class="drop" id="drop" tabindex="0" for="fileInput">
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.ods,.csv,.tsv,.txt,.json,.pdf" hidden>
+          <svg class="fan" viewBox="0 0 400 130" aria-hidden="true">
+            <path d="M230 70 L400 18 L400 112 Z" fill="var(--soft)"/>
+            <path d="M230 70 L400 40 L400 92 Z" fill="var(--soft2)"/>
+            <polyline points="0,96 26,88 52,92 78,74 104,80 130,62 156,70 182,56 208,64 230,70" fill="none" stroke="var(--hist)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <polyline points="230,70 260,60 290,66 320,52 350,58 380,46 400,50" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 5"/>
+            <line x1="230" y1="8" x2="230" y2="124" stroke="var(--ink-2)" stroke-dasharray="3 4"/>
+          </svg>
+          <strong>Drop a file here or choose one</strong>
+          <span class="muted small">Your file is read in this browser tab.</span>
+          <div class="formats"><span>XLSX</span><span>XLS</span><span>CSV</span><span>TSV</span><span>JSON</span><span>PDF</span><span>ODS</span></div>
+        </label>
+        <div class="start-alt">
+          <button class="btn primary" id="sampleBtn" type="button">Try sample data</button>
+          <button class="btn" id="pasteBtn" type="button">Paste a table</button>
+        </div>
+        <div class="paste" id="pasteBox" hidden>
+          <textarea id="pasteText" placeholder="Paste rows copied from Excel or Google Sheets, including the header row"></textarea>
+          <div><button class="btn primary small" id="pasteGo" type="button">Analyze pasted table</button></div>
+        </div>
+        <p class="msg" id="startMsg" role="status"></p>
+      </div>
+    </section>
+
+    <section id="app" hidden>
+      <div class="card source" id="sourceCard"></div>
+      <nav class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="forecast" aria-selected="false">Forecast</button>
+        <button role="tab" data-tab="breakdown" aria-selected="false">Breakdown</button>
+        <button role="tab" data-tab="data" aria-selected="false">Data quality</button>
+        <button role="tab" data-tab="report" aria-selected="false">Report</button>
+      </nav>
+      <div class="panel" id="p-overview"></div>
+      <div class="panel" id="p-forecast" hidden></div>
+      <div class="panel" id="p-breakdown" hidden></div>
+      <div class="panel" id="p-data" hidden></div>
+      <div class="panel" id="p-report" hidden></div>
+      <div style="height:48px"></div>
+    </section>
+  </main>
+</div>
+<div class="busy" id="busy" hidden><div class="box"><div class="spin"></div><span id="busyText">Working</span></div></div>
+
+<script>
+"use strict";
+/* ---------- utilities ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sum = a => { let s = 0; for (const v of a) s += v; return s; };
+const mean = a => a.length ? sum(a) / a.length : 0;
+const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(v => (v - m) ** 2))); };
+const DAY = 864e5;
+const FONT = '"Public Sans", "Segoe UI", system-ui, sans-serif';
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const JSPDF = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+const AUTOTABLE = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
+const loaded = {};
+function loadScript(src) {
+  return loaded[src] ||= new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error("A required library could not be loaded. Check your connection and try again.")); };
+    document.head.appendChild(s);
+  });
+}
+function busy(on, text) { $("#busy").hidden = !on; if (text) $("#busyText").textContent = text; }
+const tick = () => new Promise(r => setTimeout(r, 30));
+
+const S = {
+  source: "", kind: "", sheets: null, sheetName: null, aoa: null, headers: [], rows: [], wide: false, prof: [],
+  map: { date: -1, value: -1, qty: -1, cat: -1 },
+  opts: { gran: "auto", dateOrder: "auto", gaps: "interpolate", trimPartial: true, currency: "", horizon: null, adj: 0, target: null, model: "auto", showFit: false, showBt: true },
+  ds: null, A: null, suite: null, fc: null, catCache: {}, bdCol: -1, ai: "", tab: "overview", pdfText: "", sample: null, dl: null, pdfMode: false
+};
+
+/* ---------- formatting ---------- */
+function cur() { return S.pdfMode ? ({ "₹": "Rs ", "$": "$", "€": "EUR ", "£": "GBP " }[S.opts.currency] ?? "") : S.opts.currency; }
+function loc() { return S.opts.currency === "₹" ? "en-IN" : "en-US"; }
+function fmtFull(v) {
+  if (v == null || !isFinite(v)) return "–";
+  const a = Math.abs(v);
+  const s = a >= 100 ? Math.round(a).toLocaleString(loc()) : (+a.toFixed(2)).toLocaleString(loc());
+  return (v < 0 ? "-" : "") + cur() + s;
+}
+function fmtShort(v) {
+  if (v == null || !isFinite(v)) return "–";
+  const a = Math.abs(v); let s;
+  if (S.opts.currency === "₹") {
+    s = a >= 1e7 ? (a / 1e7).toFixed(a >= 1e9 ? 0 : 2) + " Cr" : a >= 1e5 ? (a / 1e5).toFixed(2) + " L" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : (+a.toFixed(1)).toString();
+  } else {
+    s = a >= 1e9 ? (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : (+a.toFixed(1)).toString();
+  }
+  return (v < 0 ? "-" : "") + cur() + s;
+}
+const pct = (v, d = 1) => v == null || !isFinite(v) ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const UNIT = { daily: "day", weekly: "week", monthly: "month", quarterly: "quarter", yearly: "year" };
+const units = (n, g) => `${n} ${UNIT[g]}${n === 1 ? "" : "s"}`;
+function fmtPeriod(ms, g) {
+  const d = new Date(ms), y = d.getUTCFullYear(), m = d.getUTCMonth();
+  switch (g) {
+    case "daily": return `${d.getUTCDate()} ${MONTHS[m]} ${y}`;
+    case "weekly": return `Wk ${d.getUTCDate()} ${MONTHS[m]} ${y}`;
+    case "monthly": return `${MONTHS[m]} ${y}`;
+    case "quarterly": return `Q${Math.floor(m / 3) + 1} ${y}`;
+    default: return String(y);
+  }
+}
+
+/* ---------- parsing values ---------- */
+const MON = { jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11 };
+function mkDate(y, m, d) {
+  y = +y; if (y < 100) y += y < 70 ? 2000 : 1900;
+  if (!(m >= 0 && m <= 11 && d >= 1 && d <= 31 && y >= 1900 && y <= 2200)) return null;
+  const t = new Date(Date.UTC(y, m, d)); return t.getUTCMonth() === m ? t : null;
+}
+function parseDate(v, order) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    const t = v.getTime() - v.getTimezoneOffset() * 60000;
+    return new Date(Math.round(t / DAY) * DAY);
+  }
+  if (typeof v === "number") {
+    if (!isFinite(v)) return null;
+    if (Number.isInteger(v) && v >= 1900 && v <= 2200) return new Date(Date.UTC(v, 0, 1));
+    if (Number.isInteger(v) && v >= 19000101 && v <= 22001231) return mkDate(Math.floor(v / 1e4), Math.floor(v / 100) % 100 - 1, v % 100);
+    if (v > 20000 && v < 80000) return new Date((Math.floor(v) - 25569) * DAY);
+    return null;
+  }
+  const s = String(v).trim(); let m;
+  if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:$|[T\s])/))) return mkDate(m[1], m[2] - 1, +m[3]);
+  if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})$/))) return mkDate(m[1], m[2] - 1, 1);
+  if ((m = s.match(/^(\d{8})$/))) return mkDate(m[1].slice(0, 4), +m[1].slice(4, 6) - 1, +m[1].slice(6));
+  if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})(?:$|[T\s,])/))) {
+    const a = +m[1], b = +m[2];
+    const dayFirst = order === "mdy" ? false : order === "dmy" ? true : !(a <= 12 && b > 12);
+    return dayFirst ? mkDate(m[3], b - 1, a) : mkDate(m[3], a - 1, b);
+  }
+  if ((m = s.match(/^(\d{4})\s*[-\s]?\s*q([1-4])$/i))) return mkDate(m[1], (m[2] - 1) * 3, 1);
+  if ((m = s.match(/^q([1-4])\s*[-\s'’]?\s*(?:fy)?\s*(\d{2,4})$/i))) return mkDate(m[2], (m[1] - 1) * 3, 1);
+  if ((m = s.match(/^(\d{4})-?w(\d{1,2})$/i))) {
+    const jan4 = Date.UTC(+m[1], 0, 4), dow = (new Date(jan4).getUTCDay() + 6) % 7;
+    return new Date(jan4 - dow * DAY + (m[2] - 1) * 7 * DAY);
+  }
+  if ((m = s.match(/^(?:fy\s*)?(\d{4})$/i))) return mkDate(m[1], 0, 1);
+  if ((m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s\-\/.,]+([a-z]{3,9})\.?[\s\-\/.,'’]+(\d{2,4})/i))) { const mo = MON[m[2].toLowerCase()]; return mo == null ? null : mkDate(m[3], mo, +m[1]); }
+  if ((m = s.match(/^(?:[a-z]{3,9},?\s+)?([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i))) { const mo = MON[m[1].toLowerCase()]; return mo == null ? null : mkDate(m[3], mo, +m[2]); }
+  if ((m = s.match(/^([a-z]{3,9})\.?[\s\-\/.,'’]+(\d{2}|\d{4})$/i))) { const mo = MON[m[1].toLowerCase()]; return mo == null ? null : mkDate(m[2], mo, 1); }
+  if ((m = s.match(/^(\d{4})[\s\-\/.]+([a-z]{3,9})$/i))) { const mo = MON[m[2].toLowerCase()]; return mo == null ? null : mkDate(m[1], mo, 1); }
+  return null;
+}
+function parseNum(v) {
+  if (typeof v === "number") return isFinite(v) ? v : NaN;
+  if (v == null || v instanceof Date) return NaN;
+  let s = String(v).trim(); if (!s) return NaN;
+  let neg = false;
+  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+  s = s.replace(/^(rs\.?|inr|usd|eur|gbp)\s*/i, "").replace(/\s*(rs\.?|inr|usd|eur|gbp)$/i, "");
+  s = s.replace(/[$€£¥₹\s,']/g, "");
+  if (s.endsWith("-") && /^\d/.test(s)) { neg = true; s = s.slice(0, -1); }
+  let mult = 1; const suf = s.match(/(k|m|mn|b|bn)$/i);
+  if (suf) { mult = { k: 1e3, m: 1e6, mn: 1e6, b: 1e9, bn: 1e9 }[suf[1].toLowerCase()]; s = s.slice(0, -suf[1].length); }
+  if (s.endsWith("%")) s = s.slice(0, -1);
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return NaN;
+  const n = parseFloat(s) * mult; return neg ? -n : n;
+}
+
+/* ---------- reading files ---------- */
+function parseDelimited(text) {
+  text = text.replace(/^\uFEFF/, "");
+  const head = text.split(/\r?\n/).slice(0, 15).join("\n");
+  let d = ",", best = -1;
+  for (const c of ["\t", ",", ";", "|"]) { const cnt = head.split(c).length - 1; if (cnt > best) { best = cnt; d = c; } }
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell.trim() === "") { q = true; cell = ""; }
+    else if (ch === d) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => { const t = c.trim(); return t === "" ? null : t; }));
+}
+function jsonToAoa(obj) {
+  let arr = Array.isArray(obj) ? obj : null;
+  if (!arr && obj && typeof obj === "object") arr = Object.values(obj).find(Array.isArray);
+  if (!arr || !arr.length) throw new Error("The JSON file doesn't contain a list of records.");
+  if (Array.isArray(arr[0])) return arr;
+  const keys = []; for (const r of arr.slice(0, 500)) for (const k of Object.keys(r || {})) if (!keys.includes(k)) keys.push(k);
+  return [keys, ...arr.map(r => keys.map(k => r?.[k] ?? null))];
+}
+async function readPdf(buf) {
+  await loadScript(PDFJS); await loadScript(PDFJS_WORKER);
+  const lib = window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await lib.getDocument({ data: buf, isEvalSupported: false }).promise;
+  const allRows = []; let text = "";
+  for (let p = 1; p <= Math.min(doc.numPages, 60); p++) {
+    const page = await doc.getPage(p); const tc = await page.getTextContent();
+    const items = tc.items.filter(it => it.str && it.str.trim()).map(it => ({ s: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0, h: Math.abs(it.transform[3]) || 10 }));
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for (const it of items) {
+      let ln = lines.find(l => Math.abs(l.y - it.y) <= Math.max(2, it.h * 0.45));
+      if (!ln) { ln = { y: it.y, items: [] }; lines.push(ln); }
+      ln.items.push(it);
+    }
+    lines.sort((a, b) => b.y - a.y);
+    for (const ln of lines) {
+      ln.items.sort((a, b) => a.x - b.x);
+      const cells = []; let c = null, end = null;
+      for (const it of ln.items) {
+        const gap = end == null ? Infinity : it.x - end;
+        if (c != null && gap < Math.max(4, it.h * 0.7)) c += (gap > 1 ? " " : "") + it.s;
+        else { if (c != null) cells.push(c.trim()); c = it.s; }
+        end = it.x + it.w;
+      }
+      if (c != null) cells.push(c.trim());
+      const split = cells.flatMap(x => x.split(/\s{2,}/)).filter(x => x !== "");
+      allRows.push(split); text += split.join("\t") + "\n";
+    }
+  }
+  S.pdfText = text;
+  const withNums = allRows.filter(r => r.length >= 2 && r.some(c => !isNaN(parseNum(c))));
+  if (withNums.length < 3) return null;
+  const freq = {}; for (const r of withNums) freq[r.length] = (freq[r.length] || 0) + 1;
+  const width = +Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+  const out = []; let headerAdded = false;
+  for (let i = 0; i < allRows.length; i++) {
+    const r = allRows[i];
+    if (r.length === width && r.some(c => !isNaN(parseNum(c)) || parseDate(c, "auto"))) {
+      if (!headerAdded) {
+        for (let k = i - 1; k >= Math.max(0, i - 4); k--) { if (allRows[k].length >= width - 1 && allRows[k].length <= width && allRows[k].every(c => isNaN(parseNum(c)))) { const h = [...allRows[k]]; while (h.length < width) h.unshift(""); out.push(h); break; } }
+        headerAdded = true;
+      }
+      out.push(r);
+    }
+  }
+  return out.length >= 3 ? out : null;
+}
+async function handleFile(file) {
+  const msg = $("#startMsg"); msg.className = "msg"; msg.textContent = "";
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  busy(true, "Reading " + file.name); await tick();
+  try {
+    S.source = file.name; S.kind = ext; S.sheets = null; S.pdfText = "";
+    if (["csv", "tsv", "txt"].includes(ext)) { ingestAoa(parseDelimited(await file.text())); }
+    else if (ext === "json") { ingestAoa(jsonToAoa(JSON.parse(await file.text()))); }
+    else if (ext === "pdf") {
+      busy(true, "Reading tables in the PDF");
+      const aoa = await readPdf(await file.arrayBuffer());
+      if (!aoa) { busy(false); pdfFallback(); return; }
+      ingestAoa(aoa);
+    } else if (["xlsx", "xls", "xlsm", "ods", "xlsb"].includes(ext)) {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      S.sheets = {}; let bestName = null, bestN = -1;
+      for (const name of wb.SheetNames) {
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: false });
+        S.sheets[name] = aoa; if (aoa.length > bestN) { bestN = aoa.length; bestName = name; }
+      }
+      S.sheetName = bestName; ingestAoa(S.sheets[bestName]);
+    } else throw new Error(`Files ending in .${ext} aren't supported. Use Excel, CSV, TSV, JSON or PDF.`);
+    await runAll();
+  } catch (e) {
+    console.error(e); busy(false);
+    showStart(); msg.className = "msg err"; msg.textContent = e.message || "The file couldn't be read.";
+  }
+}
+function pdfFallback() {
+  showStart();
+  const msg = $("#startMsg");
+  msg.className = "msg err";
+  msg.innerHTML = S.pdfText.trim()
+    ? `No clear table was found in this PDF. ${S.sample ? '<button class="btn small" id="aiPdf" type="button">Extract the table with Claude</button>' : "Try exporting the report as Excel or CSV instead."}`
+    : "This PDF has no readable text. It may be a scanned image; export the data as Excel or CSV instead.";
+  $("#aiPdf")?.addEventListener("click", aiExtractPdf);
+}
+async function aiExtractPdf() {
+  if (!S.sample) return;
+  busy(true, "Claude is extracting the table");
+  try {
+    const prompt = `You are extracting sales data from text that was pulled out of a PDF report. Find the main table of sales over time (dates or periods with amounts; may include product, region, units). Return ONLY JSON in this exact shape, no prose: {"columns":["..."],"rows":[["..."]]}. Keep one row per record, keep periods/dates as written, and numbers without currency symbols. Skip subtotal and total rows. If there are several tables, merge the ones that share columns.\n\nPDF TEXT:\n${S.pdfText.slice(0, 120000)}`;
+    const out = await S.sample.json(prompt, { modelTier: "default" });
+    if (!out || !Array.isArray(out.columns) || !Array.isArray(out.rows) || out.rows.length < 3) throw new Error("Claude couldn't find a usable sales table in this PDF.");
+    ingestAoa([out.columns, ...out.rows]);
+    await runAll();
+  } catch (e) {
+    busy(false); showStart();
+    const msg = $("#startMsg"); msg.className = "msg err";
+    msg.textContent = e.code === "not_granted" ? "Claude wasn't allowed to read the PDF. Export the data as Excel or CSV instead." : (e.message || "Extraction failed.");
+  }
+}
+
+/* ---------- table understanding ---------- */
+function isNumLike(v) { return typeof v === "number" || (typeof v === "string" && !isNaN(parseNum(v))); }
+function headerName(h, j) {
+  if (h instanceof Date) { const d = parseDate(h); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+  const s = h == null ? "" : String(h).trim(); return s || `Column ${j + 1}`;
+}
+function ingestAoa(aoa) {
+  aoa = (aoa || []).filter(r => Array.isArray(r) && r.some(c => c !== null && c !== ""));
+  if (aoa.length < 2) throw new Error("The file has fewer than two rows of data.");
+  const width = Math.max(...aoa.slice(0, 60).map(r => r.length));
+  let hi = -1;
+  for (let i = 0; i < Math.min(15, aoa.length - 1); i++) {
+    const ne = aoa[i].filter(c => c != null && c !== "");
+    const texty = ne.filter(c => (typeof c === "string" && !isNumLike(c)) || c instanceof Date);
+    if (ne.length >= Math.max(2, Math.ceil(width * 0.5)) && texty.length >= ne.length * 0.6) { hi = i; break; }
+  }
+  let headers, rows;
+  if (hi < 0) { headers = Array.from({ length: width }, (_, j) => `Column ${j + 1}`); rows = aoa; }
+  else { headers = Array.from({ length: width }, (_, j) => headerName(aoa[hi][j], j)); rows = aoa.slice(hi + 1); }
+  const seen = {}; headers = headers.map(h => { seen[h] = (seen[h] || 0) + 1; return seen[h] > 1 ? `${h} (${seen[h]})` : h; });
+  rows = rows.map(r => Array.from({ length: width }, (_, j) => r[j] ?? null));
+  S.wide = false;
+  // wide format: periods as column headers
+  const rawHead = hi >= 0 ? aoa[hi] : [];
+  const dateCols = [];
+  rawHead.forEach((h, j) => { const d = parseDate(h instanceof Date ? h : (typeof h === "string" ? h : null), "auto"); if (d) dateCols.push({ j, h }); });
+  if (dateCols.length >= 3 && dateCols.length >= headers.length * 0.4) {
+    const ids = headers.map((_, j) => j).filter(j => !dateCols.some(d => d.j === j));
+    const nh = ["Period", "Sales", ...ids.map(j => headers[j])], nr = [];
+    for (const r of rows) {
+      if (ids.some(j => /^\s*(grand\s*)?(sub)?total\b/i.test(String(r[j] ?? "")))) continue;
+      for (const d of dateCols) nr.push([d.h, r[d.j], ...ids.map(j => r[j])]);
+    }
+    headers = nh; rows = nr; S.wide = true;
+  }
+  S.headers = headers; S.rows = rows; S.catCache = {}; S.ai = "";
+  profileColumns(); autoMap();
+}
+function profileColumns() {
+  S.prof = S.headers.map((h, j) => {
+    let nNum = 0, nDate = 0, nYear = 0, n = 0; const distinct = new Set();
+    for (const r of S.rows.slice(0, 400)) {
+      const v = r[j]; if (v == null || v === "") continue; n++;
+      distinct.add(String(v));
+      if (v instanceof Date) nDate++;
+      else if (typeof v === "number") { nNum++; if (Number.isInteger(v) && v >= 1900 && v <= 2200) nYear++; }
+      else if (!isNaN(parseNum(v))) nNum++;
+      else if (parseDate(v, "auto")) nDate++;
+    }
+    for (const r of S.rows.slice(400)) { const v = r[j]; if (v != null && v !== "" && distinct.size < 2000) distinct.add(String(v)); }
+    return { name: h, n, num: n ? nNum / n : 0, date: n ? nDate / n : 0, year: n ? nYear / n : 0, distinct: distinct.size };
+  });
+}
+function autoMap() {
+  const P = S.prof, H = S.headers;
+  const dHint = /date|month|period|day|time|week|year|quarter|\bdt\b|fy/i;
+  let date = -1, ds = -1;
+  P.forEach((p, j) => {
+    let sc = p.date; if (dHint.test(H[j])) sc += 0.3;
+    if (p.year > 0.9 && /year|yr|fy/i.test(H[j])) sc = Math.max(sc, 0.95);
+    if (p.date > 0.6 || sc >= 0.95) if (sc > ds) { ds = sc; date = j; }
+  });
+  const vHint = /sales|revenue|amount|total|value|net|turnover|gmv|income|billing|invoice|price|receipts|earning/i;
+  const qHint = /qty|quantity|units|volume|pcs|pieces|count|orders/i;
+  const bad = /\bid\b|code|zip|pin|phone|year|no\.?$|number|#/i;
+  let value = -1, vs = -Infinity, qty = -1, qs = -Infinity;
+  P.forEach((p, j) => {
+    if (j === date || p.num < 0.7) return;
+    const s = (vHint.test(H[j]) ? 3 : 0) - (qHint.test(H[j]) ? 1.5 : 0) - (bad.test(H[j]) ? 3 : 0) + p.num + j * 0.01;
+    if (s > vs) { vs = s; value = j; }
+  });
+  P.forEach((p, j) => { if (j === date || j === value || p.num < 0.7 || !qHint.test(H[j])) return; const s = p.num; if (s > qs) { qs = s; qty = j; } });
+  const cHint = /product|region|category|channel|store|segment|customer|item|sku|city|brand|state|country|branch|department|rep|sales\s?person|territory|zone|type|class/i;
+  let cat = -1, cs = -Infinity;
+  P.forEach((p, j) => {
+    if ([date, value, qty].includes(j) || p.num > 0.5 || p.date > 0.5) return;
+    if (p.distinct < 2 || p.distinct > Math.max(60, S.rows.length * 0.5) || p.distinct > 500) return;
+    const s = (cHint.test(H[j]) ? 2 : 0) - p.distinct / 200;
+    if (s > cs) { cs = s; cat = j; }
+  });
+  S.map = { date, value, qty, cat };
+  S.bdCol = cat;
+  S.opts.gran = "auto"; S.opts.horizon = null; S.opts.model = "auto"; S.opts.target = null; S.opts.adj = 0;
+  const vals = value >= 0 ? S.rows.slice(0, 200).map(r => String(r[value] ?? "")).join(" ") : "";
+  if (!S.opts.currency) { if (/₹|rs\.?\s|inr/i.test(vals)) S.opts.currency = "₹"; else if (/\$/.test(vals)) S.opts.currency = "$"; else if (/€/.test(vals)) S.opts.currency = "€"; else if (/£/.test(vals)) S.opts.currency = "£"; }
+}
+function textColumns() { return S.prof.map((p, j) => ({ p, j })).filter(o => o.j !== S.map.date && o.j !== S.map.value && o.j !== S.map.qty && o.p.num < 0.5 && o.p.date < 0.5 && o.p.distinct >= 2).map(o => o.j); }
+
+/* ---------- time series construction ---------- */
+function periodStart(d, g) {
+  const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate();
+  switch (g) {
+    case "daily": return Date.UTC(y, m, day);
+    case "weekly": return Date.UTC(y, m, day) - ((d.getUTCDay() + 6) % 7) * DAY;
+    case "monthly": return Date.UTC(y, m, 1);
+    case "quarterly": return Date.UTC(y, Math.floor(m / 3) * 3, 1);
+    default: return Date.UTC(y, 0, 1);
+  }
+}
+function nextPeriod(t, g) {
+  const d = new Date(t), y = d.getUTCFullYear(), m = d.getUTCMonth();
+  switch (g) {
+    case "daily": return t + DAY;
+    case "weekly": return t + 7 * DAY;
+    case "monthly": return Date.UTC(y, m + 1, 1);
+    case "quarterly": return Date.UTC(y, m + 3, 1);
+    default: return Date.UTC(y + 1, 0, 1);
+  }
+}
+const SEASON = { daily: 7, weekly: 52, monthly: 12, quarterly: 4, yearly: 0 };
+const PPY = { daily: 365, weekly: 52, monthly: 12, quarterly: 4, yearly: 1 };
+const DEF_H = { daily: 30, weekly: 12, monthly: 12, quarterly: 4, yearly: 3 };
+const MAX_H = { daily: 180, weekly: 104, monthly: 36, quarterly: 12, yearly: 10 };
+function posOf(ms, g) {
+  const d = new Date(ms);
+  if (g === "monthly") return d.getUTCMonth();
+  if (g === "quarterly") return Math.floor(d.getUTCMonth() / 3);
+  if (g === "daily") return (d.getUTCDay() + 6) % 7;
+  if (g === "weekly") return Math.min(51, Math.floor((ms - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY / 7));
+  return 0;
+}
+function posLabels(g) {
+  if (g === "monthly") return MONTHS;
+  if (g === "quarterly") return ["Q1", "Q2", "Q3", "Q4"];
+  if (g === "daily") return DOW;
+  if (g === "weekly") return Array.from({ length: 52 }, (_, i) => "W" + (i + 1));
+  return [];
+}
+function detectOrder(col) {
+  let dmy = 0, mdy = 0;
+  for (const r of S.rows.slice(0, 3000)) {
+    const m = String(r[col] ?? "").match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.]\d{2,4}/);
+    if (!m) continue; if (+m[1] > 12) dmy++; if (+m[2] > 12) mdy++;
+  }
+  return mdy > dmy ? "mdy" : "dmy";
+}
+function buildDataset() {
+  const { date, value, qty } = S.map;
+  if (date < 0) throw new Error("Choose the column that holds dates or periods.");
+  if (value < 0) throw new Error("Choose the column that holds sales amounts.");
+  const order = S.opts.dateOrder === "auto" ? detectOrder(date) : S.opts.dateOrder;
+  const records = []; const q = { rows: S.rows.length, badDate: 0, badValue: 0, negative: 0, dup: 0, zero: 0 };
+  const seen = new Set();
+  S.rows.forEach((r, i) => {
+    const d = parseDate(r[date], order); if (!d) { q.badDate++; return; }
+    const v = parseNum(r[value]); if (!isFinite(v)) { q.badValue++; return; }
+    const key = r.map(c => c instanceof Date ? c.getTime() : c).join("\u0001"); if (seen.has(key)) q.dup++; else seen.add(key);
+    if (v < 0) q.negative++; if (v === 0) q.zero++;
+    records.push({ d, v, q: qty >= 0 ? parseNum(r[qty]) : NaN, r: i });
+  });
+  if (records.length < 4) throw new Error(`Only ${records.length} rows had both a valid date and a number. Check the column choices above.`);
+  records.sort((a, b) => a.d - b.d);
+  const uniq = [...new Set(records.map(r => r.d.getTime()))];
+  const diffs = []; for (let i = 1; i < uniq.length; i++) diffs.push((uniq[i] - uniq[i - 1]) / DAY);
+  const md = median(diffs.length ? diffs : [30]);
+  const span = (uniq[uniq.length - 1] - uniq[0]) / DAY;
+  let auto = md <= 2 ? (span <= 730 ? "daily" : "monthly") : md <= 10 ? "weekly" : md <= 45 ? "monthly" : md <= 120 ? "quarterly" : "yearly";
+  const rawGran = md <= 2 ? "daily" : md <= 10 ? "weekly" : md <= 45 ? "monthly" : md <= 120 ? "quarterly" : "yearly";
+  const gran = S.opts.gran === "auto" ? auto : S.opts.gran;
+  const rank = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, yearly: 4 };
+  const agg = new Map();
+  for (const r of records) {
+    const p = periodStart(r.d, gran); let a = agg.get(p);
+    if (!a) { a = { v: 0, n: 0, q: 0 }; agg.set(p, a); }
+    a.v += r.v; a.n++; if (isFinite(r.q)) a.q += r.q;
+  }
+  const first = periodStart(records[0].d, gran), last = periodStart(records[records.length - 1].d, gran);
+  let periods = []; for (let t = first; t <= last; t = nextPeriod(t, gran)) periods.push(t);
+  let y = [], cnt = [], qv = [], filled = [];
+  for (const p of periods) { const a = agg.get(p); y.push(a ? a.v : null); cnt.push(a ? a.n : 0); qv.push(a ? a.q : 0); filled.push(!a); }
+  // incomplete first/last periods (only when source is finer than the chosen step)
+  const dropped = [];
+  if (S.opts.trimPartial && rank[rawGran] < rank[gran] && periods.length > 6) {
+    const minD = records[0].d.getTime(), maxD = records[records.length - 1].d.getTime();
+    const lastEnd = nextPeriod(periods[periods.length - 1], gran);
+    const covLast = (maxD + DAY - periods[periods.length - 1]) / (lastEnd - periods[periods.length - 1]);
+    if (covLast < 0.9) { dropped.push(fmtPeriod(periods[periods.length - 1], gran)); periods.pop(); y.pop(); cnt.pop(); qv.pop(); filled.pop(); }
+    const covFirst = (nextPeriod(periods[0], gran) - minD) / (nextPeriod(periods[0], gran) - periods[0]);
+    if (covFirst < 0.9) { dropped.push(fmtPeriod(periods[0], gran)); periods.shift(); y.shift(); cnt.shift(); qv.shift(); filled.shift(); }
+  }
+  let gaps = 0;
+  for (let i = 0; i < y.length; i++) {
+    if (y[i] != null) continue; gaps++;
+    if (S.opts.gaps === "zero") { y[i] = 0; continue; }
+    let a = i - 1; while (a >= 0 && filled[a]) a--;
+    let b = i + 1; while (b < y.length && y[b] == null) b++;
+    const va = a >= 0 ? y[a] : null, vb = b < y.length ? y[b] : null;
+    y[i] = va != null && vb != null ? va + (vb - va) * (i - a) / (b - a) : (va ?? vb ?? 0);
+  }
+  const n = y.length;
+  if (n < 4) throw new Error(`After grouping by ${UNIT[gran]} there are only ${n} periods. Pick a shorter time step, such as Weekly or Daily.`);
+  let m = SEASON[gran]; const seasonal = m > 1 && n >= 2 * m;
+  const hasQty = S.map.qty >= 0 && qv.some(v => v > 0);
+  S.ds = { records, q: { ...q, used: records.length, gaps, dropped }, gran, auto, rawGran, rawDaily: rawGran === "daily", periods, labels: periods.map(p => fmtPeriod(p, gran)), y, cnt, qty: hasQty ? qv : null, filled, m: seasonal ? m : 0, mFull: m, ppy: PPY[gran], order };
+  if (S.opts.horizon == null || S.opts.horizon > MAX_H[gran]) S.opts.horizon = Math.min(DEF_H[gran], MAX_H[gran]);
+}
+
+/* ---------- statistics ---------- */
+function olsFit(y) {
+  const n = y.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sx += i; sy += y[i]; sxx += i * i; sxy += i * y[i]; }
+  const d = n * sxx - sx * sx; const b = d ? (n * sxy - sx * sy) / d : 0; const a = (sy - b * sx) / n;
+  return { a, b };
+}
+function r2(y, f) { const m = mean(y); let ss = 0, st = 0; y.forEach((v, i) => { ss += (v - f[i]) ** 2; st += (v - m) ** 2; }); return st ? 1 - ss / st : 0; }
+function cma(y, m) {
+  const n = y.length, out = Array(n).fill(null); if (m < 2) return out; const h = Math.floor(m / 2);
+  for (let i = h; i < n - h; i++) {
+    let s = 0;
+    if (m % 2) { for (let j = i - h; j <= i + h; j++) s += y[j]; }
+    else { s = 0.5 * y[i - h] + 0.5 * y[i + h]; for (let j = i - h + 1; j < i + h; j++) s += y[j]; }
+    out[i] = s / m;
+  }
+  return out;
+}
+function seasonalIndex(y, m, mult, pos) {
+  const c = cma(y, m), b = Array.from({ length: m }, () => []);
+  y.forEach((v, i) => { if (c[i] == null || (mult && !(c[i] > 0))) return; b[pos ? pos[i] : i % m].push(mult ? v / c[i] : v - c[i]); });
+  let idx = b.map(a => a.length ? mean(a) : (mult ? 1 : 0));
+  const mu = mean(idx); idx = idx.map(v => mult ? (mu ? v / mu : 1) : v - mu);
+  return idx;
+}
+function acf(y, lag) {
+  const n = y.length; if (lag < 1 || lag >= n - 2) return 0; const m = mean(y); let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { den += (y[i] - m) ** 2; if (i >= lag) num += (y[i] - m) * (y[i - lag] - m); }
+  return den ? num / den : 0;
+}
+
+/* ---------- forecasting models ---------- */
+function holtRun(y, a, b, p) {
+  let L = y[0], T = y[1] - y[0], sse = 0; const fitted = [null];
+  for (let t = 1; t < y.length; t++) {
+    const f = L + p * T; fitted.push(f); const e = y[t] - f; sse += e * e;
+    const Lp = L; L = a * y[t] + (1 - a) * (L + p * T); T = b * (L - Lp) + (1 - b) * p * T;
+  }
+  return { sse, fitted, L, T };
+}
+function dampedFc(L, T, p, h, season) {
+  const o = []; let s = 0, ph = 1;
+  for (let k = 1; k <= h; k++) { ph *= p; s += ph; o.push(season ? season(k, L + T * s) : L + T * s); }
+  return o;
+}
+function holtFit(y) {
+  let best = null;
+  for (const a of [.1, .2, .35, .5, .7, .9]) for (const b of [.02, .08, .2, .4]) for (const p of [.85, .95, 1]) {
+    const r = holtRun(y, a, b, p); if (!best || r.sse < best.sse) best = { ...r, a, b, p };
+  }
+  return { fitted: best.fitted, fc: h => dampedFc(best.L, best.T, best.p, h), params: `α ${best.a}, β ${best.b}, φ ${best.p}` };
+}
+function hwRun(y, m, a, b, g, p, mult) {
+  const n = y.length; let L = mean(y.slice(0, m)); let T = (mean(y.slice(m, 2 * m)) - L) / m;
+  if (mult && !(L > 0)) return { sse: Infinity };
+  const Sx = []; for (let i = 0; i < m; i++) Sx.push(mult ? y[i] / L : y[i] - L);
+  const fitted = Array(n).fill(null); let sse = 0;
+  for (let t = m; t < n; t++) {
+    const s = Sx[t % m]; if (mult && !(s > 0)) return { sse: Infinity };
+    const f = mult ? (L + p * T) * s : L + p * T + s; fitted[t] = f; const e = y[t] - f; sse += e * e;
+    const Lp = L;
+    L = mult ? a * (y[t] / s) + (1 - a) * (Lp + p * T) : a * (y[t] - s) + (1 - a) * (Lp + p * T);
+    if (mult && !(L > 0)) return { sse: Infinity };
+    T = b * (L - Lp) + (1 - b) * p * T;
+    Sx[t % m] = mult ? g * (y[t] / L) + (1 - g) * s : g * (y[t] - L) + (1 - g) * s;
+  }
+  return { sse, fitted, L, T, S: Sx.slice() };
+}
+function hwFit(y, m, mult) {
+  let best = null;
+  for (const a of [.1, .2, .35, .5, .7, .9]) for (const b of [.02, .08, .2, .4]) for (const g of [.05, .15, .3, .5]) for (const p of [.85, .95, 1]) {
+    const r = hwRun(y, m, a, b, g, p, mult); if (!isFinite(r.sse)) continue;
+    if (!best || r.sse < best.sse) best = { ...r, a, b, g, p };
+  }
+  if (!best) throw new Error("no fit");
+  const n = y.length;
+  return { fitted: best.fitted, fc: h => dampedFc(best.L, best.T, best.p, h, (k, base) => { const s = best.S[(n + k - 1) % m]; return mult ? base * s : base + s; }), params: `α ${best.a}, β ${best.b}, γ ${best.g}, φ ${best.p}` };
+}
+const MODELS = {
+  naive: { name: "Last value", ok: n => n >= 2, fit: y => { const n = y.length; return { fitted: y.map((v, i) => i ? y[i - 1] : null), fc: h => Array(h).fill(y[n - 1]) }; } },
+  snaive: { name: "Same period last cycle", ok: (n, m) => m > 1 && n >= m + 1, fit: (y, m) => { const n = y.length; return { fitted: y.map((v, i) => i >= m ? y[i - m] : null), fc: h => Array.from({ length: h }, (_, k) => y[n - m + (k % m)]) }; } },
+  ma: { name: "Moving average", ok: n => n >= 4, fit: (y, m) => { const n = y.length, w = Math.min(m > 1 ? m : 3, n - 1); const lv = mean(y.slice(n - w)); return { fitted: y.map((v, i) => i >= w ? mean(y.slice(i - w, i)) : null), fc: h => Array(h).fill(lv) }; } },
+  drift: { name: "Drift", ok: n => n >= 3, fit: y => { const n = y.length, s = (y[n - 1] - y[0]) / (n - 1); return { fitted: y.map((v, i) => i ? y[i - 1] + s : null), fc: h => Array.from({ length: h }, (_, k) => y[n - 1] + s * (k + 1)) }; } },
+  linear: { name: "Linear trend", ok: n => n >= 3, fit: y => { const { a, b } = olsFit(y), n = y.length; return { fitted: y.map((v, i) => a + b * i), fc: h => Array.from({ length: h }, (_, k) => a + b * (n + k)) }; } },
+  expo: { name: "Exponential growth", ok: (n, m, pos) => n >= 4 && pos, fit: y => { const { a, b } = olsFit(y.map(Math.log)), n = y.length; return { fitted: y.map((v, i) => Math.exp(a + b * i)), fc: h => Array.from({ length: h }, (_, k) => Math.exp(a + b * (n + k))) }; } },
+  seastrend: { name: "Trend + seasonality", ok: (n, m) => m > 1 && n >= 2 * m, fit: (y, m) => {
+    const pos = y.every(v => v > 0), idx = seasonalIndex(y, m, pos);
+    const ds = y.map((v, i) => pos ? v / idx[i % m] : v - idx[i % m]); const { a, b } = olsFit(ds), n = y.length;
+    const re = t => pos ? (a + b * t) * idx[t % m] : a + b * t + idx[t % m];
+    return { fitted: y.map((v, i) => re(i)), fc: h => Array.from({ length: h }, (_, k) => re(n + k)) };
+  } },
+  holt: { name: "Holt smoothing (damped trend)", ok: n => n >= 4, fit: y => holtFit(y) },
+  hwa: { name: "Holt-Winters additive", ok: (n, m) => m > 1 && n >= 2 * m, fit: (y, m) => hwFit(y, m, false) },
+  hwm: { name: "Holt-Winters multiplicative", ok: (n, m, pos) => m > 1 && n >= 2 * m && pos, fit: (y, m) => hwFit(y, m, true) }
+};
+const NAMES = Object.fromEntries(Object.entries(MODELS).map(([k, v]) => [k, v.name])); NAMES.ensemble = "Blend of top 3 models";
+const score = r => isFinite(r.wape) ? r.wape : r.mae;
+function evaluate(y, m) {
+  const n = y.length;
+  const hb = Math.max(1, Math.min(m > 1 ? m : 6, Math.round(n * 0.2)));
+  let minTrain = 3; if (m > 1 && n - hb >= 2 * m) minTrain = 2 * m;
+  const origins = []; for (let o = 1; o <= 3; o++) { const tl = n - hb * o; if (tl >= Math.max(minTrain, 3)) origins.push(tl); }
+  if (!origins.length) origins.push(Math.max(2, n - hb));
+  const res = {};
+  for (const [k, M] of Object.entries(MODELS)) {
+    if (!origins.every(tl => M.ok(tl, m, y.slice(0, tl).every(v => v > 0)))) continue;
+    let ae = 0, se = 0, sa = 0, be = 0, cnt = 0, ok = true; const perOrigin = [];
+    for (const tl of origins) {
+      const te = y.slice(tl, tl + hb); let f;
+      try { f = M.fit(y.slice(0, tl), m).fc(te.length); } catch (e) { ok = false; break; }
+      if (f.some(v => !isFinite(v))) { ok = false; break; }
+      perOrigin.push({ tl, f });
+      te.forEach((a, i) => { const e = f[i] - a; ae += Math.abs(e); se += e * e; sa += Math.abs(a); be += e; cnt++; });
+    }
+    if (!ok || !cnt) continue;
+    res[k] = { wape: sa > 0 ? ae / sa : NaN, mae: ae / cnt, rmse: Math.sqrt(se / cnt), bias: sa > 0 ? be / sa : 0, last: perOrigin[0], perOrigin };
+  }
+  const ranked = Object.keys(res).sort((a, b) => score(res[a]) - score(res[b]));
+  if (ranked.length >= 3) {
+    const members = ranked.slice(0, 3); const inv = members.map(k => 1 / Math.max(score(res[k]), 1e-9) ** 2); const sw = sum(inv); const weights = inv.map(v => v / sw);
+    let ae = 0, se = 0, sa = 0, be = 0, cnt = 0; const perOrigin = [];
+    origins.forEach((tl, oi) => {
+      const te = y.slice(tl, tl + hb);
+      const f = te.map((_, i) => members.reduce((s, k, j) => s + weights[j] * res[k].perOrigin[oi].f[i], 0));
+      perOrigin.push({ tl, f });
+      te.forEach((a, i) => { const e = f[i] - a; ae += Math.abs(e); se += e * e; sa += Math.abs(a); be += e; cnt++; });
+    });
+    res.ensemble = { wape: sa > 0 ? ae / sa : NaN, mae: ae / cnt, rmse: Math.sqrt(se / cnt), bias: sa > 0 ? be / sa : 0, last: perOrigin[0], perOrigin, members, weights };
+  }
+  return { res, hb, origins };
+}
+function modelSuite(y, m) {
+  const ev = evaluate(y, m); const fits = {};
+  for (const k of Object.keys(ev.res)) { if (k === "ensemble") continue; try { const f = MODELS[k].fit(y, m); if (f.fc(1).every(isFinite)) fits[k] = f; } catch (e) {} }
+  const E = ev.res.ensemble;
+  if (E && E.members.every(k => fits[k])) {
+    fits.ensemble = {
+      fitted: y.map((_, i) => { let s = 0; for (let j = 0; j < E.members.length; j++) { const f = fits[E.members[j]].fitted[i]; if (f == null) return null; s += E.weights[j] * f; } return s; }),
+      fc: h => { const fs = E.members.map(k => fits[k].fc(h)); return Array.from({ length: h }, (_, i) => fs.reduce((s, f, j) => s + E.weights[j] * f[i], 0)); },
+      params: E.members.map((k, j) => `${NAMES[k]} ${(E.weights[j] * 100).toFixed(0)}%`).join(", ")
+    };
+  }
+  const ranking = Object.keys(ev.res).filter(k => fits[k]).sort((a, b) => score(ev.res[a]) - score(ev.res[b]));
+  if (!ranking.length) throw new Error("No forecasting model could be fitted to this data.");
+  return { ev, fits, ranking, best: ranking[0], y, m, nonneg: y.every(v => v >= 0) };
+}
+function forecastFrom(suite, key, H, adj) {
+  const f = suite.fits[key], met = suite.ev.res[key];
+  const raw = f.fc(H);
+  const e = []; suite.y.forEach((v, i) => { const ft = f.fitted[i]; if (ft != null && isFinite(ft)) e.push(v - ft); });
+  let s1 = e.length > 2 ? Math.sqrt(mean(e.map(x => x * x))) : met.rmse;
+  if (!(s1 > 0)) s1 = met.rmse || Math.abs(mean(suite.y)) * 0.1 || 1;
+  const hb = suite.ev.hb, target = met.rmse;
+  const avgF = g => mean(Array.from({ length: hb }, (_, k) => Math.sqrt(1 + k * g)));
+  let g = 0;
+  if (target > s1) {
+    if (s1 * avgF(20) < target) g = 20;
+    else { let lo = 0, hi = 20; for (let it = 0; it < 50; it++) { const mid = (lo + hi) / 2; if (s1 * avgF(mid) < target) lo = mid; else hi = mid; } g = (lo + hi) / 2; }
+    if (hb === 1) s1 = target;
+  }
+  const mul = 1 + adj, clip = v => suite.nonneg ? Math.max(0, v) : v;
+  const sig = Array.from({ length: H }, (_, k) => s1 * Math.sqrt(1 + k * g));
+  return {
+    key, raw,
+    point: raw.map(v => clip(v) * mul),
+    lo80: raw.map((v, k) => clip(v - 1.2816 * sig[k]) * mul), hi80: raw.map((v, k) => clip(v + 1.2816 * sig[k]) * mul),
+    lo95: raw.map((v, k) => clip(v - 1.96 * sig[k]) * mul), hi95: raw.map((v, k) => clip(v + 1.96 * sig[k]) * mul),
+    sig: sig.map(s => s * mul), fitted: f.fitted, params: f.params || ""
+  };
+}
+function normCdf(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2); return 0.5 * (1 + (x >= 0 ? y : -y)); }
+
+/* ---------- analysis ---------- */
+function analyze() {
+  const ds = S.ds, { y, periods, gran, ppy } = ds, n = y.length, m = ds.m;
+  const A = {};
+  A.n = n; A.total = sum(y); A.avg = A.total / n; A.med = median(y); A.sd = sd(y); A.cv = A.avg ? A.sd / Math.abs(A.avg) : 0;
+  A.maxI = y.indexOf(Math.max(...y)); A.minI = y.indexOf(Math.min(...y));
+  A.lastChange = n > 1 && y[n - 2] ? y[n - 1] / y[n - 2] - 1 : null;
+  A.win = ppy > 1 && n >= 2 * ppy ? ppy : Math.max(1, Math.floor(n / 2));
+  A.winCur = sum(y.slice(n - A.win)); A.winPrev = sum(y.slice(n - 2 * A.win, n - A.win));
+  A.winGrowth = A.winPrev ? A.winCur / A.winPrev - 1 : null;
+  A.winText = A.win === ppy && ppy > 1 ? `the last 12 months vs the 12 months before` : `the last ${units(A.win, gran)} vs the ${A.win} before`;
+  if (A.win === ppy && gran === "quarterly") A.winText = "the last 4 quarters vs the 4 before";
+  if (A.win === ppy && gran === "weekly") A.winText = "the last 52 weeks vs the 52 before";
+  if (A.win === ppy && gran === "daily") A.winText = "the last 365 days vs the 365 before";
+  const reg = olsFit(y); A.trend = y.map((_, i) => reg.a + reg.b * i); A.slope = reg.b; A.r2 = r2(y, A.trend);
+  A.annualTrend = A.avg ? reg.b * ppy / Math.abs(A.avg) : 0;
+  const w = m > 1 ? m : Math.min(3, n); A.maW = w;
+  A.ma = y.map((_, i) => i >= w - 1 ? mean(y.slice(i - w + 1, i + 1)) : null);
+  A.pop = y.map((v, i) => i && y[i - 1] ? v / y[i - 1] - 1 : null);
+  // seasonality by calendar position
+  A.seas = null;
+  const M = ds.mFull;
+  if (M > 1 && n >= 2 * M) {
+    const pos = periods.map(p => posOf(p, gran)); const mult = y.every(v => v > 0);
+    const idx = seasonalIndex(y, M, mult, pos);
+    const str = acf(y.map((v, i) => v - A.trend[i]), M);
+    const asRatio = mult ? idx : idx.map(v => A.avg ? 1 + v / A.avg : 1);
+    const peak = asRatio.indexOf(Math.max(...asRatio)), trough = asRatio.indexOf(Math.min(...asRatio));
+    A.seas = { idx: asRatio, labels: posLabels(gran).slice(0, M), strength: str, peak, trough, mult };
+    // expected values for anomaly detection
+    const c = cma(y, M); const xi = [], yi = []; c.forEach((v, i) => { if (v != null) { xi.push(i); yi.push(v); } });
+    let a = 0, b = 0;
+    if (xi.length > 1) { const mx = mean(xi), my = mean(yi); let sxx = 0, sxy = 0; xi.forEach((x, k) => { sxx += (x - mx) ** 2; sxy += (x - mx) * (yi[k] - my); }); b = sxx ? sxy / sxx : 0; a = my - b * mx; }
+    A.expected = y.map((_, i) => { const t = c[i] ?? a + b * i; return mult ? t * idx[pos[i]] : t + idx[pos[i]]; });
+  } else {
+    A.expected = y.map((_, i) => median(y.slice(Math.max(0, i - 2), Math.min(n, i + 3))));
+  }
+  const res = y.map((v, i) => v - A.expected[i]); const mad = median(res.map(v => Math.abs(v - median(res)))) * 1.4826 || sd(res) || 1;
+  const thr = n < 30 ? 2.5 : 3;
+  A.anoms = res.map((r, i) => ({ i, z: r / mad, r })).filter(o => Math.abs(o.z) >= thr && !ds.filled[o.i]).sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+  // year-over-year matrix
+  A.yoy = null;
+  if (["monthly", "quarterly", "weekly"].includes(gran) && n > ppy) {
+    const years = {};
+    periods.forEach((p, i) => { const yr = new Date(p).getUTCFullYear(); (years[yr] ||= Array(M).fill(null))[posOf(p, gran)] = y[i]; });
+    const keys = Object.keys(years).filter(k => years[k].filter(v => v != null).length >= Math.max(2, M / 4));
+    if (keys.length >= 2) A.yoy = { years: keys.slice(-5), data: years, labels: posLabels(gran) };
+  }
+  // weekday profile from raw daily data
+  A.weekday = null;
+  if (ds.rawDaily) {
+    const tot = Array(7).fill(0), days = Array.from({ length: 7 }, () => new Set());
+    for (const r of ds.records) { const k = (r.d.getUTCDay() + 6) % 7; tot[k] += r.v; days[k].add(r.d.getTime()); }
+    const avg = tot.map((t, k) => days[k].size ? t / days[k].size : 0);
+    if (avg.some(v => v)) A.weekday = avg;
+  }
+  // units and price
+  if (ds.qty) {
+    A.totQty = sum(ds.qty); A.avgPrice = A.totQty ? A.total / A.totQty : null;
+    A.price = y.map((v, i) => ds.qty[i] ? v / ds.qty[i] : null);
+    const pv = A.price.filter(v => v != null); A.priceChange = pv.length > 3 ? mean(pv.slice(-Math.min(A.win, 6))) / mean(pv.slice(0, Math.min(A.win, 6))) - 1 : null;
+  }
+  // longest growth streak
+  let st = 0, best = 0; for (let i = 1; i < n; i++) { if (y[i] > y[i - 1]) { st++; best = Math.max(best, st); } else st = 0; } A.streak = best;
+  S.A = A;
+}
+function catAnalysis(col) {
+  if (col == null || col < 0) return null;
+  if (S.catCache[col]) return S.catCache[col];
+  const ds = S.ds, n = ds.y.length, idx = new Map(ds.periods.map((p, i) => [p, i])), map = new Map();
+  for (const r of ds.records) {
+    const i = idx.get(periodStart(r.d, ds.gran)); if (i == null) continue;
+    const k = String(S.rows[r.r][col] ?? "").trim() || "(blank)";
+    if (!map.has(k)) map.set(k, new Array(n).fill(0)); map.get(k)[i] += r.v;
+  }
+  const total = sum(ds.y) || 1, win = S.A.win;
+  const items = [...map.entries()].map(([name, s]) => {
+    const t = sum(s), c = sum(s.slice(n - win)), p = sum(s.slice(n - 2 * win, n - win));
+    return { name, s, total: t, share: t / total, growth: p ? c / p - 1 : null, cur: c, prev: p };
+  }).sort((a, b) => b.total - a.total);
+  let acc = 0, k80 = 0; for (const it of items) { acc += it.share; k80++; if (acc >= 0.8) break; }
+  for (const it of items.slice(0, 8)) {
+    if (it.s.filter(v => v !== 0).length < 4) continue;
+    try { it.suite = modelSuite(it.s, ds.m); } catch (e) {}
+  }
+  const out = { col, name: S.headers[col], items, k80, distinct: items.length };
+  S.catCache[col] = out; return out;
+}
+
+/* ---------- pipeline ---------- */
+async function runAll() {
+  busy(true, "Analyzing and testing forecasting models"); await tick();
+  try {
+    S.catCache = {};
+    buildDataset(); analyze();
+    S.suite = modelSuite(S.ds.y, S.ds.m);
+    if (S.opts.model !== "auto" && !S.suite.fits[S.opts.model]) S.opts.model = "auto";
+    computeForecast();
+    showApp(); renderSource(); renderTab(S.tab, true);
+  } catch (e) {
+    console.error(e); showApp(); renderSource(e.message);
+    ["overview", "forecast", "breakdown", "data", "report"].forEach(t => $("#p-" + t).innerHTML = `<div class="card empty">${esc(e.message)}</div>`);
+  } finally { busy(false); }
+}
+function computeForecast() {
+  const ds = S.ds, key = S.opts.model === "auto" ? S.suite.best : S.opts.model, H = S.opts.horizon;
+  const fc = forecastFrom(S.suite, key, H, S.opts.adj / 100);
+  const fut = []; let t = ds.periods[ds.periods.length - 1]; for (let k = 0; k < H; k++) { t = nextPeriod(t, ds.gran); fut.push(t); }
+  fc.periods = fut; fc.labels = fut.map(p => fmtPeriod(p, ds.gran)); fc.total = sum(fc.point);
+  const sdInd = Math.sqrt(sum(fc.sig.map(s => s * s))), sdCor = sum(fc.sig); fc.sdTotal = (sdInd + sdCor) / 2;
+  const y = ds.y, n = y.length;
+  fc.prevTotal = n >= H ? sum(y.slice(n - H)) : null;
+  fc.lyTotal = n >= ds.ppy && ds.ppy > 1 && H <= ds.ppy ? sum(y.slice(n - ds.ppy, n - ds.ppy + H)) : null;
+  S.fc = fc;
+}
+
+/* ---------- charts ---------- */
+const charts = {};
+function pal(light) {
+  if (light) return { ink: "#15233B", ink2: "#4F5E73", line: "#E1E6E4", accent: "#2B54D8", soft: "rgba(43,84,216,.12)", soft2: "rgba(43,84,216,.26)", good: "#1F7A55", bad: "#B4432F", warn: "#A86E12", hist: "#15233B" };
+  const cs = getComputedStyle(document.documentElement), g = k => cs.getPropertyValue(k).trim();
+  return { ink: g("--ink"), ink2: g("--ink-2"), line: g("--line"), accent: g("--accent"), soft: g("--soft"), soft2: g("--soft2"), good: g("--good"), bad: g("--bad"), warn: g("--warn"), hist: g("--hist") };
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function baseOpts(P, extra = {}) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: (reduceMotion || extra.static) ? false : { duration: 350 },
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { labels: { color: P.ink2, boxWidth: 12, boxHeight: 12, font: { family: FONT, size: 12 }, filter: it => !it.text.startsWith("_") } },
+      tooltip: { filter: it => !it.dataset.label.startsWith("_") && !it.dataset.isBand, callbacks: { label: c => `${c.dataset.label}: ${c.dataset.isPct ? pct(c.parsed.y) : fmtFull(c.parsed.y)}` } }
+    },
+    scales: {
+      x: { ticks: { color: P.ink2, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { family: FONT, size: 11 } }, grid: { display: false }, border: { color: P.line } },
+      y: { ticks: { color: P.ink2, font: { family: FONT, size: 11 }, callback: v => fmtShort(v) }, grid: { color: P.line }, border: { display: false } }
+    }
+  };
+}
+function mkChart(id, cfg) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const el = document.getElementById(id); if (!el || !window.Chart) return null;
+  charts[id] = new Chart(el, cfg); return charts[id];
+}
+const divider = {
+  id: "divider",
+  afterDatasetsDraw(chart, args, o) {
+    if (o == null || o.index == null) return;
+    const x = chart.scales.x.getPixelForValue(o.index), { top, bottom } = chart.chartArea, c = chart.ctx;
+    c.save(); c.strokeStyle = o.color; c.lineWidth = 1; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom); c.stroke();
+    c.setLineDash([]); c.fillStyle = o.color; c.font = `600 11px ${FONT}`; c.fillText("Forecast", x + 6, top + 12); c.restore();
+  }
+};
+function drawForecast(id, P, opt = {}) {
+  const ds = S.ds, fc = S.fc, n = ds.y.length, H = fc.point.length;
+  const start = opt.window ? Math.max(0, n - opt.window) : 0;
+  const labels = ds.labels.concat(fc.labels).slice(start);
+  const pad = a => Array(n - 1).fill(null).concat([ds.y[n - 1]], a).slice(start);
+  const actual = ds.y.concat(Array(H).fill(null)).slice(start);
+  const sets = [
+    { label: "_u95", data: pad(fc.hi95), borderWidth: 0, pointRadius: 0, fill: false, isBand: true },
+    { label: "95% range", data: pad(fc.lo95), borderWidth: 0, pointRadius: 0, fill: "-1", backgroundColor: P.soft, isBand: true },
+    { label: "_u80", data: pad(fc.hi80), borderWidth: 0, pointRadius: 0, fill: false, isBand: true },
+    { label: "80% range", data: pad(fc.lo80), borderWidth: 0, pointRadius: 0, fill: "-1", backgroundColor: P.soft2, isBand: true },
+    { label: "Actual", data: actual, borderColor: P.hist, backgroundColor: P.hist, borderWidth: 2, pointRadius: n > 60 ? 0 : 2, tension: .2 }
+  ];
+  if (opt.fit) sets.push({ label: "Model fit", data: fc.fitted.concat(Array(H).fill(null)).slice(start), borderColor: P.ink2, borderDash: [3, 3], borderWidth: 1.3, pointRadius: 0, tension: .2 });
+  if (opt.bt) {
+    const last = S.suite.ev.res[fc.key].last;
+    if (last) { const arr = Array(n + H).fill(null); last.f.forEach((v, i) => arr[last.tl + i] = v); sets.push({ label: "Backtest (unseen history)", data: arr.slice(start), borderColor: P.warn, backgroundColor: P.warn, borderWidth: 1.6, pointRadius: 2, borderDash: [5, 3] }); }
+  }
+  sets.push({ label: "Forecast", data: pad(fc.point), borderColor: P.accent, backgroundColor: P.accent, borderWidth: 2.6, pointRadius: H > 40 ? 0 : 2.5, tension: .2 });
+  const o = baseOpts(P, { static: opt.static });
+  o.plugins.divider = { index: n - 1 - start, color: P.ink2 };
+  o.plugins.tooltip.callbacks.footer = items => {
+    const i = items[0]?.dataIndex + start - n; if (i == null || i < 0 || i >= H) return "";
+    return `80% range: ${fmtFull(fc.lo80[i])} – ${fmtFull(fc.hi80[i])}\n95% range: ${fmtFull(fc.lo95[i])} – ${fmtFull(fc.hi95[i])}`;
+  };
+  return mkChart(id, { type: "line", data: { labels, datasets: sets }, options: o, plugins: [divider] });
+}
+
+/* ---------- rendering: shell ---------- */
+function showStart() { $("#start").hidden = false; $("#app").hidden = true; $("#topActions").hidden = true; }
+function showApp() { $("#start").hidden = true; $("#app").hidden = false; $("#topActions").hidden = false; $("#currency").value = S.opts.currency; }
+function opt(v, label, sel) { return `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(label)}</option>`; }
+function renderSource(err) {
+  const H = S.headers, ds = S.ds;
+  const colOpts = (sel, none) => (none ? opt(-1, "None", sel < 0) : "") + H.map((h, j) => opt(j, h, j === sel)).join("");
+  const sheetSel = S.sheets && Object.keys(S.sheets).length > 1 ? `<label class="f">Sheet<select id="m-sheet">${Object.keys(S.sheets).map(s => opt(s, s, s === S.sheetName)).join("")}</select></label>` : "";
+  const g = S.opts.gran, autoLbl = ds ? `Auto (${UNIT[ds.auto]}ly)`.replace("dayly", "daily") : "Auto";
+  const meta = ds ? `${ds.q.used.toLocaleString()} rows · ${ds.labels[0]} to ${ds.labels[ds.labels.length - 1]} · ${units(ds.y.length, ds.gran)}` : "";
+  $("#sourceCard").innerHTML = `
+    <div class="source-head">
+      <div><div class="file">${esc(S.source)}</div><div class="muted small">${esc(meta)}${S.wide ? " · wide table reshaped to one row per period" : ""}</div></div>
+      ${S.kind === "pdf" && S.sample ? '<button class="btn small" id="aiPdf2" type="button">Table looks wrong? Re-extract with Claude</button>' : ""}
+    </div>
+    <div class="mapgrid">
+      ${sheetSel}
+      <label class="f">Date or period<select id="m-date">${colOpts(S.map.date, true)}</select></label>
+      <label class="f">Sales amount<select id="m-value">${colOpts(S.map.value, true)}</select></label>
+      <label class="f">Units (optional)<select id="m-qty">${colOpts(S.map.qty, true)}</select></label>
+      <label class="f">Group by (optional)<select id="m-cat">${colOpts(S.map.cat, true)}</select></label>
+      <label class="f">Time step<select id="m-gran">${opt("auto", autoLbl, g === "auto")}${["daily", "weekly", "monthly", "quarterly", "yearly"].map(x => opt(x, x[0].toUpperCase() + x.slice(1), g === x)).join("")}</select></label>
+      <label class="f">Date format<select id="m-order">${opt("auto", ds ? `Auto (${ds.order === "dmy" ? "day first" : "month first"})` : "Auto", S.opts.dateOrder === "auto")}${opt("dmy", "Day first (31/12)", S.opts.dateOrder === "dmy")}${opt("mdy", "Month first (12/31)", S.opts.dateOrder === "mdy")}</select></label>
+      <label class="f">Missing periods<select id="m-gaps">${opt("interpolate", "Fill by interpolation", S.opts.gaps === "interpolate")}${opt("zero", "Count as zero sales", S.opts.gaps === "zero")}</select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="m-trim"${S.opts.trimPartial ? " checked" : ""}> Leave out incomplete first and last periods</label>
+    ${err ? `<p class="msg err" style="margin:0">${esc(err)}</p>` : ""}
+    <details><summary class="small" style="cursor:pointer;font-weight:600">Preview source rows</summary>
+      <div class="tablewrap" style="margin-top:8px"><table><thead><tr>${H.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${S.rows.slice(0, 8).map(r => `<tr>${r.map(c => `<td>${esc(c instanceof Date ? fmtPeriod(parseDate(c), "daily") : c ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    </details>`;
+  const on = (id, fn) => $(id)?.addEventListener("change", e => { fn(e.target.value); runAll(); });
+  on("#m-sheet", v => { S.sheetName = v; ingestAoa(S.sheets[v]); });
+  on("#m-date", v => { S.map.date = +v; });
+  on("#m-value", v => { S.map.value = +v; });
+  on("#m-qty", v => { S.map.qty = +v; });
+  on("#m-cat", v => { S.map.cat = +v; S.bdCol = +v; });
+  on("#m-gran", v => { S.opts.gran = v; S.opts.horizon = null; S.opts.model = "auto"; });
+  on("#m-order", v => { S.opts.dateOrder = v; });
+  on("#m-gaps", v => { S.opts.gaps = v; });
+  $("#m-trim")?.addEventListener("change", e => { S.opts.trimPartial = e.target.checked; runAll(); });
+  $("#aiPdf2")?.addEventListener("click", aiExtractPdf);
+}
+const rendered = {};
+function renderTab(t, force) {
+  S.tab = t;
+  $$("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["overview", "forecast", "breakdown", "data", "report"].forEach(x => $("#p-" + x).hidden = x !== t);
+  if (force) Object.keys(rendered).forEach(k => delete rendered[k]);
+  if (!S.fc) return;
+  ({ overview: renderOverview, forecast: renderForecast, breakdown: renderBreakdown, data: renderData, report: renderReport })[t]();
+  rendered[t] = true;
+}
+
+/* ---------- insights ---------- */
+function buildInsights() {
+  const A = S.A, ds = S.ds, fc = S.fc, g = ds.gran, u = UNIT[g], out = [];
+  out.push({ t: `Across ${units(A.n, g)} (${ds.labels[0]} to ${ds.labels[A.n - 1]}), sales totalled ${fmtFull(A.total)}, an average of ${fmtFull(A.avg)} per ${u}.` });
+  if (A.winGrowth != null) out.push({ hi: true, t: `Comparing ${A.winText}, sales ${A.winGrowth >= 0 ? "grew" : "fell"} ${pct(Math.abs(A.winGrowth)).replace("+", "")} (${fmtFull(A.winCur)} vs ${fmtFull(A.winPrev)}).` });
+  if (A.r2 >= 0.25) out.push({ t: `The underlying trend is ${A.slope >= 0 ? "rising" : "falling"} by about ${fmtFull(Math.abs(A.slope))} per ${u}, roughly ${pct(Math.abs(A.annualTrend)).replace("+", "")} of average sales a year. A straight line explains ${(A.r2 * 100).toFixed(0)}% of the movement.` });
+  else out.push({ t: `There's no strong straight-line trend (it explains only ${(Math.max(0, A.r2) * 100).toFixed(0)}% of the movement), so changes are driven more by seasonality, one-off events or noise.` });
+  if (A.seas) {
+    const s = A.seas, pk = (s.idx[s.peak] - 1), tr = (s.idx[s.trough] - 1), cyc = g === "daily" ? "weekly" : "yearly";
+    if (s.strength > 0.25) out.push({ hi: true, t: `There's a clear ${cyc} pattern: ${s.labels[s.peak]} typically runs ${pct(pk, 0)} against an average ${g === "daily" ? "day" : "period"}, and ${s.labels[s.trough]} ${pct(tr, 0)}.` });
+    else out.push({ t: `The ${cyc} pattern is mild: ${s.labels[s.peak]} is the strongest ${g === "daily" ? "weekday" : "position in the year"} (${pct(pk, 0)}) but the effect isn't very consistent.` });
+  } else if (ds.mFull > 1) out.push({ t: `There isn't enough history to measure seasonality yet: that needs at least ${units(2 * ds.mFull, g)}; you have ${A.n}.` });
+  out.push({ t: `Best ${u}: ${ds.labels[A.maxI]} at ${fmtFull(ds.y[A.maxI])}. Weakest: ${ds.labels[A.minI]} at ${fmtFull(ds.y[A.minI])}. Sales typically move ±${(A.cv * 100).toFixed(0)}% around the average${A.cv > 0.5 ? ", which is volatile and widens forecast ranges" : ""}.` });
+  if (A.anoms.length) { const a = A.anoms[0]; out.push({ t: `${A.anoms.length} unusual ${A.anoms.length === 1 ? u : u + "s"} stand out from the normal pattern. The largest is ${ds.labels[a.i]}, ${fmtFull(Math.abs(a.r))} ${a.r > 0 ? "above" : "below"} what trend and season would predict.` }); }
+  if (A.weekday) { const w = A.weekday, mx = w.indexOf(Math.max(...w)), mn = w.indexOf(Math.min(...w)); out.push({ t: `By weekday, ${DOW[mx]} is busiest (${fmtFull(w[mx])} on an average ${DOW[mx]}) and ${DOW[mn]} is quietest (${fmtFull(w[mn])}).` }); }
+  if (A.avgPrice) out.push({ t: `Average selling price is ${fmtFull(A.avgPrice)} per unit across ${Math.round(A.totQty).toLocaleString()} units${A.priceChange != null ? `, and it has moved ${pct(A.priceChange)} from the start of the data to recent periods` : ""}.` });
+  const met = S.suite.ev.res[fc.key];
+  const vsPrev = fc.prevTotal ? fc.total / fc.prevTotal - 1 : null, vsLy = fc.lyTotal ? fc.total / fc.lyTotal - 1 : null;
+  out.push({ hi: true, t: `The ${NAMES[fc.key]} forecast${isFinite(met.wape) ? `, which was ${(Math.max(0, 1 - met.wape) * 100).toFixed(1)}% accurate on history it hadn't seen,` : ""} projects ${fmtFull(fc.total)} over the next ${units(fc.point.length, g)}${vsLy != null ? ` (${pct(vsLy)} vs the same ${units(fc.point.length, g)} last year)` : vsPrev != null ? ` (${pct(vsPrev)} vs the previous ${units(fc.point.length, g)})` : ""}.${S.opts.adj ? ` This includes your ${pct(S.opts.adj / 100, 0)} scenario adjustment.` : ""}` });
+  const C = S.map.cat >= 0 ? catAnalysis(S.map.cat) : null;
+  if (C && C.items.length > 1) {
+    const top = C.items[0]; const grow = C.items.filter(i => i.growth != null && i.prev > 0 && i.share > 0.02).sort((a, b) => b.growth - a.growth);
+    out.push({ t: `${top.name} is the largest ${C.name.toLowerCase()} at ${(top.share * 100).toFixed(1)}% of sales; ${C.k80} of ${C.distinct} account for 80% of the total.${grow.length > 1 ? ` ${grow[0].name} is growing fastest (${pct(grow[0].growth)}), while ${grow[grow.length - 1].name} is weakest (${pct(grow[grow.length - 1].growth)}).` : ""}` });
+  }
+  return out;
+}
+
+/* ---------- overview ---------- */
+function renderOverview() {
+  const A = S.A, ds = S.ds, fc = S.fc, u = UNIT[ds.gran], P = pal();
+  const k = (l, v, d, c) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d ? `<div class="d ${c || ""}">${d}</div>` : ""}</div>`;
+  $("#p-overview").innerHTML = `
+    <div class="kpis">
+      ${k("Total sales", fmtShort(A.total), `${units(A.n, ds.gran)}`)}
+      ${k(`Average per ${u}`, fmtShort(A.avg), `median ${fmtShort(A.med)}`)}
+      ${k(`Latest ${u}`, fmtShort(ds.y[A.n - 1]), A.lastChange != null ? `${pct(A.lastChange)} vs prior ${u}` : "", cls(A.lastChange))}
+      ${k(A.win === ds.ppy && ds.ppy > 1 ? "Year-on-year growth" : "Recent growth", pct(A.winGrowth), A.win === ds.ppy ? "trailing 12 months" : `last ${units(A.win, ds.gran)}`, cls(A.winGrowth))}
+      ${k(`Next ${units(fc.point.length, ds.gran)}`, fmtShort(fc.total), `forecast, ${NAMES[fc.key].toLowerCase()}`)}
+      ${A.avgPrice ? k("Average price per unit", fmtShort(A.avgPrice), A.priceChange != null ? `${pct(A.priceChange)} over the period` : "", cls(A.priceChange)) : ""}
+    </div>
+    <div class="stack">
+      <div class="card"><h3>What the data says</h3><div class="sub">Generated from the figures below; recalculates when you change columns or settings.</div><ul class="insights">${buildInsights().map(i => `<li class="${i.hi ? "hi" : ""}">${esc(i.t)}</li>`).join("")}</ul></div>
+      <div class="card"><h3>Sales over time</h3><div class="sub">${A.maW}-${u} moving average and straight-line trend for context.</div><div class="chartbox tall"><canvas id="c-hist"></canvas></div></div>
+      <div class="grid2">
+        <div class="card"><h3>Change from previous ${u}</h3><div class="sub">Green bars are increases.</div><div class="chartbox"><canvas id="c-pop"></canvas></div></div>
+        <div class="card"><h3>Seasonal pattern</h3><div class="sub">${A.seas ? `100 is an average ${ds.gran === "daily" ? "day" : "period"}; ${A.seas.strength > 0.25 ? "pattern is consistent" : "pattern is weak"} (strength ${(A.seas.strength).toFixed(2)}).` : "Needs at least two full cycles of history."}</div>${A.seas ? '<div class="chartbox"><canvas id="c-seas"></canvas></div>' : `<div class="empty">Add more history, or switch the time step, to see seasonality.</div>`}</div>
+      </div>
+      ${A.yoy || A.weekday ? `<div class="grid2">
+        ${A.yoy ? `<div class="card"><h3>Year by year</h3><div class="sub">Each line is one calendar year.</div><div class="chartbox"><canvas id="c-yoy"></canvas></div></div>` : ""}
+        ${A.weekday ? `<div class="card"><h3>Average sales by weekday</h3><div class="sub">From the daily records in your file.</div><div class="chartbox"><canvas id="c-wd"></canvas></div></div>` : ""}
+      </div>` : ""}
+      ${S.sample ? `<div class="card"><h3>Ask Claude about this data</h3><div class="sub">Claude sees the summary figures from this analysis, not your raw file.</div>
+        <div class="ask"><input type="text" id="askQ" placeholder="e.g. Which months should I stock up for, and by how much?" aria-label="Question"><button class="btn primary" id="askBtn" type="button">Ask</button></div>
+        <div class="ai-out" id="askOut" aria-live="polite"></div></div>` : ""}
+    </div>`;
+  const o = baseOpts(P);
+  mkChart("c-hist", { type: "line", data: { labels: ds.labels, datasets: [
+    { label: "Sales", data: ds.y, borderColor: P.hist, backgroundColor: P.hist, borderWidth: 2, pointRadius: ds.y.length > 60 ? 0 : 2, tension: .2 },
+    { label: `${A.maW}-${u} average`, data: A.ma, borderColor: P.accent, borderWidth: 2, pointRadius: 0, tension: .3 },
+    { label: "Trend", data: A.trend, borderColor: P.ink2, borderDash: [5, 4], borderWidth: 1.4, pointRadius: 0 }
+  ] }, options: o });
+  const op = baseOpts(P); op.plugins.legend.display = false; op.scales.y.ticks.callback = v => pct(v, 0);
+  mkChart("c-pop", { type: "bar", data: { labels: ds.labels, datasets: [{ label: "Change", isPct: true, data: A.pop, backgroundColor: A.pop.map(v => v >= 0 ? P.good : P.bad), borderRadius: 2 }] }, options: op });
+  if (A.seas) {
+    const os = baseOpts(P); os.plugins.legend.display = false; os.scales.y.ticks.callback = v => Math.round(v); os.plugins.tooltip.callbacks.label = c => `Index ${c.parsed.y.toFixed(0)} (${pct(c.parsed.y / 100 - 1, 0)} vs average)`;
+    os.scales.y.suggestedMin = Math.max(0, Math.min(...A.seas.idx) * 100 - 15);
+    mkChart("c-seas", { type: "bar", data: { labels: A.seas.labels, datasets: [{ label: "Seasonal index", data: A.seas.idx.map(v => v * 100), backgroundColor: A.seas.idx.map(v => v >= 1 ? P.accent : P.ink2), borderRadius: 3 }] }, options: os });
+  }
+  if (A.yoy) {
+    const shades = [P.line, P.ink2, P.warn, P.hist, P.accent].slice(-A.yoy.years.length);
+    mkChart("c-yoy", { type: "line", data: { labels: A.yoy.labels, datasets: A.yoy.years.map((yr, i) => ({ label: yr, data: A.yoy.data[yr], borderColor: shades[i], backgroundColor: shades[i], borderWidth: i === A.yoy.years.length - 1 ? 2.6 : 1.6, pointRadius: 1.5, tension: .2, spanGaps: false })) }, options: baseOpts(P) });
+  }
+  if (A.weekday) {
+    const ow = baseOpts(P); ow.plugins.legend.display = false;
+    mkChart("c-wd", { type: "bar", data: { labels: DOW, datasets: [{ label: "Average", data: A.weekday, backgroundColor: P.accent, borderRadius: 3 }] }, options: ow });
+  }
+  $("#askBtn")?.addEventListener("click", askClaude);
+  $("#askQ")?.addEventListener("keydown", e => { if (e.key === "Enter") askClaude(); });
+}
+
+/* ---------- forecast tab ---------- */
+function renderForecast() {
+  const ds = S.ds, fc = S.fc, su = S.suite, g = ds.gran, u = UNIT[g];
+  const sel = S.opts.model;
+  const H = fc.point.length;
+  const prob = S.opts.target ? 1 - normCdf((S.opts.target - fc.total) / (fc.sdTotal || 1)) : null;
+  const met = su.ev.res[fc.key];
+  const vsPrev = fc.prevTotal ? fc.total / fc.prevTotal - 1 : null, vsLy = fc.lyTotal ? fc.total / fc.lyTotal - 1 : null;
+  const sumLo = sum(fc.lo80), sumHi = sum(fc.hi80);
+  $("#p-forecast").innerHTML = `
+    <div class="stack">
+    <div class="card">
+      <div class="controls">
+        <label class="f">Model<select id="f-model">${opt("auto", `Most accurate (${NAMES[su.best]})`, sel === "auto")}${su.ranking.map(k => opt(k, NAMES[k], sel === k)).join("")}</select></label>
+        <label class="f">Forecast length<span class="range-row"><input type="range" id="f-h" min="1" max="${MAX_H[g]}" value="${H}"><output id="f-ho">${H}</output></span><span class="muted" style="font-weight:400">${u}s ahead</span></label>
+        <label class="f">Scenario adjustment<span class="range-row"><input type="range" id="f-adj" min="-50" max="50" step="1" value="${S.opts.adj}"><output id="f-ao">${S.opts.adj > 0 ? "+" : ""}${S.opts.adj}%</output></span><span class="muted" style="font-weight:400">applied on top of the model</span></label>
+        <label class="f">Sales target for the period<input type="number" id="f-target" min="0" step="any" placeholder="e.g. ${Math.round(fc.total * 1.1)}" value="${S.opts.target ?? ""}"></label>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+        <label class="check"><input type="checkbox" id="f-fit"${S.opts.showFit ? " checked" : ""}> Show model fit</label>
+        <label class="check"><input type="checkbox" id="f-bt"${S.opts.showBt ? " checked" : ""}> Show backtest</label>
+      </div>
+      <div class="fcsum">
+        <div><div class="l">Next ${u} (${esc(fc.labels[0])})</div><div class="v">${fmtShort(fc.point[0])}</div><div class="muted small">80% range ${fmtShort(fc.lo80[0])} – ${fmtShort(fc.hi80[0])}</div></div>
+        <div><div class="l">Total, next ${units(H, g)}</div><div class="v">${fmtShort(fc.total)}</div><div class="muted small">likely ${fmtShort(sumLo)} – ${fmtShort(sumHi)}</div></div>
+        <div><div class="l">${vsLy != null ? "Vs same period last year" : "Vs previous " + units(H, g)}</div><div class="v ${cls(vsLy ?? vsPrev)}">${pct(vsLy ?? vsPrev)}</div><div class="muted small">${fmtShort(vsLy != null ? fc.lyTotal : fc.prevTotal)} before</div></div>
+        <div><div class="l">${prob != null ? "Chance of reaching target" : "Model accuracy on unseen data"}</div><div class="v">${prob != null ? (prob * 100).toFixed(0) + "%" : isFinite(met.wape) ? (Math.max(0, 1 - met.wape) * 100).toFixed(1) + "%" : "–"}</div><div class="muted small">${prob != null ? `target ${fmtShort(S.opts.target)}` : `average miss ${fmtShort(met.mae)} per ${u}`}</div></div>
+      </div>
+    </div>
+    <div class="card"><h3>Forecast with likely ranges</h3><div class="sub">The darker band is where results should land 8 times in 10; the lighter band 19 times in 20. Ranges are calibrated to how far off the model was on held-out history.</div><div class="chartbox tall"><canvas id="c-fc"></canvas></div></div>
+    <div class="card"><h3>How each model performed</h3><div class="sub">Each model was trained on older data and scored on the ${units(su.ev.hb, g)} that followed, which it never saw, repeated over ${su.ev.origins.length} ${su.ev.origins.length === 1 ? "round" : "rounds"}. Select a row to use that model.</div>
+      <div class="tablewrap"><table><thead><tr><th>Rank</th><th>Model</th><th class="n">Accuracy</th><th class="n">Average miss</th><th class="n">RMSE</th><th class="n">Bias</th></tr></thead><tbody>
+      ${su.ranking.map((k, i) => { const r = su.ev.res[k]; return `<tr class="click${k === fc.key ? " sel" : ""}" data-model="${k}" tabindex="0"><td>${i + 1}</td><td>${esc(NAMES[k])} ${k === su.best ? '<span class="tag">best</span>' : ""}</td><td class="n">${isFinite(r.wape) ? (Math.max(0, 1 - r.wape) * 100).toFixed(1) + "%" : "–"}</td><td class="n">${fmtFull(r.mae)}</td><td class="n">${fmtFull(r.rmse)}</td><td class="n">${r.bias > 0.005 ? "over " : r.bias < -0.005 ? "under " : ""}${pct(Math.abs(r.bias)).replace("+", "")}</td></tr>`; }).join("")}
+      </tbody></table></div>
+      <p class="legend-note">Accuracy is 100% minus the weighted absolute percentage error. Bias shows whether a model tends to forecast too high (over) or too low (under). ${fc.params ? "Selected settings: " + esc(fc.params) + "." : ""}</p>
+    </div>
+    <div class="card"><h3>Forecast by period</h3>
+      <div class="tablewrap" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Period</th><th class="n">Forecast</th><th class="n">80% low</th><th class="n">80% high</th><th class="n">95% low</th><th class="n">95% high</th><th class="n">Running total</th></tr></thead><tbody>
+      ${fc.point.map((v, i) => `<tr><td>${esc(fc.labels[i])}</td><td class="n"><strong>${fmtFull(v)}</strong></td><td class="n">${fmtFull(fc.lo80[i])}</td><td class="n">${fmtFull(fc.hi80[i])}</td><td class="n">${fmtFull(fc.lo95[i])}</td><td class="n">${fmtFull(fc.hi95[i])}</td><td class="n">${fmtFull(sum(fc.point.slice(0, i + 1)))}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>
+    </div>`;
+  drawForecast("c-fc", pal(), { fit: S.opts.showFit, bt: S.opts.showBt });
+  const refresh = () => { computeForecast(); rendered.overview = rendered.report = rendered.breakdown = false; renderForecast(); };
+  $("#f-model").addEventListener("change", e => { S.opts.model = e.target.value; refresh(); });
+  const hIn = $("#f-h"); hIn.addEventListener("input", () => $("#f-ho").textContent = hIn.value); hIn.addEventListener("change", () => { S.opts.horizon = +hIn.value; refresh(); });
+  const aIn = $("#f-adj"); aIn.addEventListener("input", () => $("#f-ao").textContent = (aIn.value > 0 ? "+" : "") + aIn.value + "%"); aIn.addEventListener("change", () => { S.opts.adj = +aIn.value; refresh(); });
+  $("#f-target").addEventListener("change", e => { const v = parseFloat(e.target.value); S.opts.target = isFinite(v) && v > 0 ? v : null; refresh(); });
+  $("#f-fit").addEventListener("change", e => { S.opts.showFit = e.target.checked; drawForecast("c-fc", pal(), { fit: S.opts.showFit, bt: S.opts.showBt }); });
+  $("#f-bt").addEventListener("change", e => { S.opts.showBt = e.target.checked; drawForecast("c-fc", pal(), { fit: S.opts.showFit, bt: S.opts.showBt }); });
+  $$("tr[data-model]").forEach(tr => { const go = () => { S.opts.model = tr.dataset.model === su.best ? "auto" : tr.dataset.model; refresh(); }; tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); }); });
+}
+
+/* ---------- breakdown ---------- */
+function renderBreakdown() {
+  const ds = S.ds, g = ds.gran, P = pal(), cols = textColumns();
+  if (S.bdCol < 0 && cols.length) S.bdCol = cols[0];
+  if (!cols.length && S.bdCol < 0) { $("#p-breakdown").innerHTML = `<div class="card empty">Your data has no text column to group by. Add a column such as Product, Region or Channel to see which ones drive sales.</div>`; return; }
+  const C = catAnalysis(S.bdCol); const H = S.fc.point.length, adj = S.opts.adj / 100;
+  const items = C.items; const top = items.slice(0, 10), other = items.slice(10);
+  const rows = items.slice(0, 25).map(it => {
+    let f = null; if (it.suite) { try { f = sum(forecastFrom(it.suite, it.suite.best, H, adj).point); } catch (e) {} }
+    const last = sum(it.s.slice(-H)); return { ...it, f, fchg: f != null && last ? f / last - 1 : null };
+  });
+  const allCols = [...new Set([...cols, S.bdCol].filter(j => j >= 0))];
+  $("#p-breakdown").innerHTML = `
+    <div class="stack">
+      <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:end;justify-content:space-between">
+        <label class="f">Group sales by<select id="b-col">${allCols.map(j => opt(j, S.headers[j], j === S.bdCol)).join("")}</select></label>
+        <p class="muted small" style="margin:0;max-width:60ch">${C.distinct} different values. ${C.k80} of them (${((C.k80 / C.distinct) * 100).toFixed(0)}%) bring in 80% of sales.${C.distinct > 300 ? " This column has many unique values, so it may be an ID rather than a group." : ""}</p>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Share of total sales</h3><div class="sub">Top ${top.length}${other.length ? `, with ${other.length} more grouped as Other` : ""}.</div><div class="chartbox tall"><canvas id="c-share"></canvas></div></div>
+        <div class="card"><h3>Top ${Math.min(5, items.length)} over time</h3><div class="sub">Sales per ${UNIT[g]}.</div><div class="chartbox tall"><canvas id="c-top"></canvas></div></div>
+      </div>
+      <div class="card"><h3>Performance and forecast by ${esc(C.name.toLowerCase())}</h3><div class="sub">Growth compares ${esc(S.A.winText)}. Forecasts use the most accurate model for each item, over the next ${units(H, g)}.</div>
+        <div class="tablewrap"><table><thead><tr><th>${esc(C.name)}</th><th class="n">Total sales</th><th class="n">Share</th><th class="n">Growth</th><th class="n">Next ${units(H, g)}</th><th class="n">Vs last ${units(H, g)}</th><th>Model used</th></tr></thead><tbody>
+        ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="n">${fmtFull(r.total)}</td><td class="n">${(r.share * 100).toFixed(1)}%</td><td class="n ${cls(r.growth)}">${pct(r.growth)}</td><td class="n">${r.f != null ? fmtFull(r.f) : '<span class="muted">too little data</span>'}</td><td class="n ${cls(r.fchg)}">${pct(r.fchg)}</td><td class="muted">${r.suite ? esc(NAMES[r.suite.best]) : "–"}</td></tr>`).join("")}
+        </tbody></table></div>
+        ${items.length > 25 ? `<p class="legend-note">Showing the 25 largest of ${items.length}. Forecasts are calculated for the top 8.</p>` : ""}
+      </div>
+    </div>`;
+  const oc = baseOpts(P); oc.indexAxis = "y"; oc.plugins.legend.display = false;
+  oc.scales = { x: { ticks: { color: P.ink2, callback: v => v + "%" }, grid: { color: P.line } }, y: { ticks: { color: P.ink, font: { family: FONT, size: 12 } }, grid: { display: false } } };
+  oc.plugins.tooltip.callbacks.label = c => `${c.parsed.x.toFixed(1)}% of sales`;
+  const labs = top.map(t => t.name.length > 28 ? t.name.slice(0, 27) + "…" : t.name), shares = top.map(t => t.share * 100);
+  if (other.length) { labs.push("Other"); shares.push(sum(other.map(o => o.share)) * 100); }
+  mkChart("c-share", { type: "bar", data: { labels: labs, datasets: [{ label: "Share", data: shares, backgroundColor: labs.map((_, i) => i === 0 ? P.accent : P.ink2), borderRadius: 3 }] }, options: oc });
+  const shades = [P.accent, P.hist, P.warn, P.good, P.bad];
+  mkChart("c-top", { type: "line", data: { labels: ds.labels, datasets: items.slice(0, 5).map((it, i) => ({ label: it.name, data: it.s, borderColor: shades[i], backgroundColor: shades[i], borderWidth: 1.8, pointRadius: 0, tension: .25 })) }, options: baseOpts(P) });
+  $("#b-col").addEventListener("change", e => { S.bdCol = +e.target.value; busy(true, "Forecasting each group"); setTimeout(() => { try { renderBreakdown(); } finally { busy(false); } }, 30); });
+}
+
+/* ---------- data quality ---------- */
+function renderData() {
+  const ds = S.ds, q = ds.q, A = S.A, g = ds.gran;
+  const card = (l, v, warn, note) => `<div class="q${warn ? " warn" : ""}"><div class="l">${l}</div><div class="v">${v}</div>${note ? `<div class="muted small">${note}</div>` : ""}</div>`;
+  $("#p-data").innerHTML = `
+    <div class="stack">
+      <div class="card"><h3>Data checks</h3><div class="sub">What was read from ${esc(S.source)} and how it was cleaned before analysis.</div>
+        <div class="qgrid">
+          ${card("Rows in file", q.rows.toLocaleString())}
+          ${card("Rows used", q.used.toLocaleString(), false, `${((q.used / q.rows) * 100).toFixed(0)}% of rows`)}
+          ${card("Rows without a usable date", q.badDate.toLocaleString(), q.badDate > 0, q.badDate ? "skipped, often totals or notes" : "")}
+          ${card("Rows without a number", q.badValue.toLocaleString(), q.badValue > 0, q.badValue ? "skipped" : "")}
+          ${card("Exact duplicate rows", q.dup.toLocaleString(), q.dup > 0, q.dup ? "kept; check for double entry" : "")}
+          ${card("Negative amounts", q.negative.toLocaleString(), q.negative > 0, q.negative ? "kept as returns or refunds" : "")}
+          ${card(`Empty ${UNIT[g]}s filled`, q.gaps.toLocaleString(), q.gaps > 0, q.gaps ? (S.opts.gaps === "zero" ? "counted as zero" : "interpolated") : "")}
+          ${card("Incomplete periods left out", q.dropped.length, q.dropped.length > 0, q.dropped.join(", "))}
+          ${card(`Unusual ${UNIT[g]}s`, A.anoms.length, A.anoms.length > 0)}
+        </div>
+      </div>
+      <div class="card"><h3>Unusual ${UNIT[g]}s</h3><div class="sub">Periods that differ sharply from what trend and season predict. Promotions, stock-outs and data errors usually show up here.</div>
+        ${A.anoms.length ? `<div class="tablewrap"><table><thead><tr><th>Period</th><th class="n">Actual</th><th class="n">Expected</th><th class="n">Difference</th><th class="n">Severity</th></tr></thead><tbody>
+        ${A.anoms.slice(0, 20).map(a => `<tr><td>${esc(ds.labels[a.i])}</td><td class="n">${fmtFull(ds.y[a.i])}</td><td class="n">${fmtFull(A.expected[a.i])}</td><td class="n ${cls(a.r)}">${a.r > 0 ? "+" : ""}${fmtFull(a.r)}</td><td class="n">${Math.abs(a.z).toFixed(1)}×</td></tr>`).join("")}
+        </tbody></table></div>` : `<p class="muted">No ${UNIT[g]} stands out from the normal pattern.</p>`}
+      </div>
+      <div class="card"><h3>Grouped series</h3><div class="sub">The ${g} totals used for every chart and forecast.</div>
+        <div class="tablewrap" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Period</th><th class="n">Sales</th><th class="n">Rows</th>${ds.qty ? '<th class="n">Units</th>' : ""}<th>Note</th></tr></thead><tbody>
+        ${ds.y.map((v, i) => `<tr><td>${esc(ds.labels[i])}</td><td class="n">${fmtFull(v)}</td><td class="n">${ds.cnt[i]}</td>${ds.qty ? `<td class="n">${Math.round(ds.qty[i]).toLocaleString()}</td>` : ""}<td class="muted">${ds.filled[i] ? "filled" : ""}</td></tr>`).join("")}
+        </tbody></table></div>
+      </div>
+    </div>`;
+}
+
+/* ---------- AI ---------- */
+function aiContext() {
+  const A = S.A, ds = S.ds, fc = S.fc, su = S.suite;
+  const C = S.map.cat >= 0 ? catAnalysis(S.map.cat) : null;
+  return JSON.stringify({
+    source: S.source, currency: S.opts.currency || "unspecified", timeStep: ds.gran, periods: A.n, from: ds.labels[0], to: ds.labels[A.n - 1],
+    history: ds.labels.map((l, i) => [l, Math.round(ds.y[i] * 100) / 100]).slice(-60),
+    total: A.total, averagePerPeriod: A.avg, comparison: { label: A.winText, current: A.winCur, previous: A.winPrev, growth: A.winGrowth },
+    trend: { slopePerPeriod: A.slope, r2: A.r2, annualisedPctOfAverage: A.annualTrend },
+    seasonality: A.seas ? { positions: A.seas.labels, index: A.seas.idx.map(v => +v.toFixed(3)), strength: A.seas.strength } : null,
+    weekdayAverages: A.weekday ? Object.fromEntries(DOW.map((d, i) => [d, Math.round(A.weekday[i])])) : null,
+    volatilityCV: A.cv, anomalies: A.anoms.slice(0, 6).map(a => ({ period: ds.labels[a.i], actual: ds.y[a.i], expected: A.expected[a.i] })),
+    unitPrice: A.avgPrice ? { average: A.avgPrice, change: A.priceChange } : null,
+    forecast: { model: NAMES[fc.key], accuracyOnHoldout: isFinite(su.ev.res[fc.key].wape) ? 1 - su.ev.res[fc.key].wape : null, scenarioAdjustmentPct: S.opts.adj, target: S.opts.target, periods: fc.labels.map((l, i) => ({ period: l, forecast: Math.round(fc.point[i]), low80: Math.round(fc.lo80[i]), high80: Math.round(fc.hi80[i]) })), total: fc.total, vsSamePeriodLastYear: fc.lyTotal ? fc.total / fc.lyTotal - 1 : null },
+    models: su.ranking.map(k => ({ model: NAMES[k], accuracy: isFinite(su.ev.res[k].wape) ? 1 - su.ev.res[k].wape : null })),
+    breakdown: C ? { by: C.name, items: C.items.slice(0, 12).map(i => ({ name: i.name, share: +i.share.toFixed(4), growth: i.growth })) } : null,
+    dataQuality: S.ds.q
+  });
+}
+const aiErr = e => ({ not_granted: "Claude wasn't given permission to answer here.", rate_limited: "Too many requests just now. Wait a moment and try again.", cancelled: "" }[e?.code] ?? "Claude couldn't answer. Try again.");
+function md(t) {
+  let html = "", inList = false;
+  for (const l of esc(t).split("\n")) {
+    const b = l.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    if (/^\s*[-*•]\s+/.test(l)) { if (!inList) { html += "<ul>"; inList = true; } html += "<li>" + b.replace(/^\s*[-*•]\s+/, "") + "</li>"; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    if (/^#{1,4}\s+/.test(l)) html += "<h4>" + b.replace(/^#{1,4}\s+/, "") + "</h4>"; else if (l.trim()) html += "<p>" + b + "</p>";
+  }
+  return html + (inList ? "</ul>" : "");
+}
+async function askClaude() {
+  const q = $("#askQ").value.trim(), out = $("#askOut"), btn = $("#askBtn"); if (!q || !S.sample) return;
+  btn.disabled = true; out.innerHTML = '<p class="muted">Thinking…</p>';
+  try {
+    await S.sample(`You are a sales analyst. Answer the question using only the analysis summary below (JSON). Be specific with numbers, keep it under 220 words, use short paragraphs or "- " bullets, and say plainly if the data can't answer it.\n\nSUMMARY:\n${aiContext()}\n\nQUESTION: ${q}`, { modelTier: "default", onText: ({ text }) => { out.innerHTML = md(text); } });
+  } catch (e) { out.innerHTML = `<p class="muted">${esc(e.text ? "" : aiErr(e))}</p>` + (e.text ? md(e.text) : ""); }
+  finally { btn.disabled = false; }
+}
+async function writeCommentary() {
+  const btn = $("#r-ai"), out = $("#r-ai-out"); if (!S.sample) return;
+  btn.disabled = true; out.innerHTML = '<p class="meta">Claude is reviewing the analysis…</p>';
+  try {
+    const { text } = await S.sample(`You are a senior sales analyst writing the commentary section of a sales forecast report for a business owner. Use only the analysis summary below (JSON). Write about 350 words with these headings, each starting with "## ": "Headline", "What is driving sales", "Risks to the forecast", "Recommended actions". Use concrete numbers and periods. Use "- " bullets for actions. No preamble.\n\nSUMMARY:\n${aiContext()}`, { modelTier: "complex", onText: ({ text }) => { out.innerHTML = md(text); } });
+    S.ai = text; out.innerHTML = md(text);
+  } catch (e) { out.innerHTML = `<p class="meta">${esc(aiErr(e))}</p>`; if (e.text) { S.ai = e.text; out.innerHTML = md(e.text); } }
+  finally { btn.disabled = false; }
+}
+
+/* ---------- report ---------- */
+function reportTables() {
+  const ds = S.ds, fc = S.fc, su = S.suite, A = S.A;
+  const C = S.map.cat >= 0 ? catAnalysis(S.map.cat) : null;
+  return {
+    kpis: [
+      ["Total sales", fmtFull(A.total)], [`Average per ${UNIT[ds.gran]}`, fmtFull(A.avg)], ["Growth, " + A.winText, pct(A.winGrowth)],
+      [`Forecast, next ${units(fc.point.length, ds.gran)}`, fmtFull(fc.total)], ["Forecast model", NAMES[fc.key]],
+      ["Model accuracy on unseen data", isFinite(su.ev.res[fc.key].wape) ? (Math.max(0, 1 - su.ev.res[fc.key].wape) * 100).toFixed(1) + "%" : "–"]
+    ].concat(A.avgPrice ? [["Average price per unit", fmtFull(A.avgPrice)]] : []).concat(S.opts.target ? [["Chance of reaching target " + fmtFull(S.opts.target), (100 * (1 - normCdf((S.opts.target - fc.total) / (fc.sdTotal || 1)))).toFixed(0) + "%"]] : []),
+    forecast: fc.point.map((v, i) => [fc.labels[i], fmtFull(v), fmtFull(fc.lo80[i]), fmtFull(fc.hi80[i]), fmtFull(fc.lo95[i]), fmtFull(fc.hi95[i])]),
+    models: su.ranking.slice(0, 6).map((k, i) => { const r = su.ev.res[k]; return [String(i + 1), NAMES[k], isFinite(r.wape) ? (Math.max(0, 1 - r.wape) * 100).toFixed(1) + "%" : "–", fmtFull(r.mae), pct(r.bias)]; }),
+    cats: C ? C.items.slice(0, 12).map(i => [i.name, fmtFull(i.total), (i.share * 100).toFixed(1) + "%", pct(i.growth)]) : null, catName: C?.name,
+    anoms: A.anoms.slice(0, 8).map(a => [ds.labels[a.i], fmtFull(ds.y[a.i]), fmtFull(A.expected[a.i]), (a.r > 0 ? "+" : "") + fmtFull(a.r)])
+  };
+}
+function renderReport() {
+  const ds = S.ds, fc = S.fc, A = S.A, T = reportTables(), q = ds.q;
+  const tbl = (head, rows, numFrom = 1) => `<div class="tablewrap"><table><thead><tr>${head.map((h, i) => `<th class="${i >= numFrom ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${i >= numFrom ? "n" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const dlOk = !!S.dl;
+  $("#p-report").innerHTML = `
+    <div class="report-actions">
+      <button class="btn primary" id="r-pdf" type="button"${dlOk ? "" : " disabled"}>Download PDF report</button>
+      <button class="btn" id="r-xlsx" type="button"${dlOk ? "" : " disabled"}>Download Excel workbook</button>
+      <button class="btn" id="r-csv" type="button"${dlOk ? "" : " disabled"}>Download forecast CSV</button>
+      <button class="btn" id="r-html" type="button"${dlOk ? "" : " disabled"}>Download HTML report</button>
+      ${S.sample ? `<button class="btn" id="r-ai" type="button">${S.ai ? "Rewrite" : "Add"} analyst commentary with Claude</button>` : ""}
+      <span class="muted small" id="r-msg" role="status">${dlOk ? "" : "File downloads aren't available in this view."}</span>
+    </div>
+    <article class="sheet" id="sheet">
+      <h1>Sales forecast report</h1>
+      <p class="meta">${esc(S.source)} · ${esc(ds.labels[0])} to ${esc(ds.labels[A.n - 1])} · ${units(A.n, ds.gran)} · prepared ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+      <h2>Summary</h2>
+      <ul>${buildInsights().map(i => `<li>${esc(i.t)}</li>`).join("")}</ul>
+      <h2>Key figures</h2>
+      <div class="kgrid">${T.kpis.map(([l, v]) => `<div><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join("")}</div>
+      <h2>Forecast</h2>
+      <p>${esc(NAMES[fc.key])} forecast for the next ${units(fc.point.length, ds.gran)}, with 80% and 95% ranges${S.opts.adj ? ` and a ${pct(S.opts.adj / 100, 0)} scenario adjustment` : ""}.</p>
+      <div class="chartbox"><canvas id="r-c-fc"></canvas></div>
+      ${tbl(["Period", "Forecast", "80% low", "80% high", "95% low", "95% high"], T.forecast)}
+      <h2>Model accuracy</h2>
+      <p>Each model was trained on older history and scored on the ${units(S.suite.ev.hb, ds.gran)} that followed, over ${S.suite.ev.origins.length} ${S.suite.ev.origins.length === 1 ? "round" : "rounds"}.</p>
+      ${tbl(["Rank", "Model", "Accuracy", "Average miss", "Bias"], T.models, 2)}
+      ${A.seas ? `<h2>Seasonality</h2><p>Index of 100 is an average ${ds.gran === "daily" ? "day" : "period"}.</p><div class="chartbox" style="height:230px"><canvas id="r-c-seas"></canvas></div>` : ""}
+      ${T.cats ? `<h2>Sales by ${esc(T.catName.toLowerCase())}</h2>${tbl([T.catName, "Total", "Share", "Growth"], T.cats)}` : ""}
+      ${T.anoms.length ? `<h2>Unusual periods</h2>${tbl(["Period", "Actual", "Expected", "Difference"], T.anoms)}` : ""}
+      <div id="r-ai-wrap"${S.ai || S.sample ? "" : " hidden"}><h2>Analyst commentary</h2><div class="ai-out" id="r-ai-out">${S.ai ? md(S.ai) : '<p class="meta">Not added yet.</p>'}</div></div>
+      <h2>Data and method</h2>
+      <p>${q.used.toLocaleString()} of ${q.rows.toLocaleString()} rows were used${q.badDate + q.badValue ? `; ${(q.badDate + q.badValue).toLocaleString()} without a usable date or amount were skipped` : ""}. ${q.gaps ? `${q.gaps} empty periods were ${S.opts.gaps === "zero" ? "counted as zero" : "filled by interpolation"}. ` : ""}${q.dropped.length ? `Incomplete periods left out: ${esc(q.dropped.join(", "))}. ` : ""}Ten models were compared: last value, same period last cycle, moving average, drift, linear trend, exponential growth, trend with seasonality, damped Holt smoothing and additive and multiplicative Holt-Winters, plus a weighted blend of the top three. Forecast ranges are scaled so that their width matches the errors the model made on held-out history.</p>
+    </article>`;
+  const L = pal(true);
+  drawForecast("r-c-fc", L, { window: Math.max(24, ds.ppy * 2), static: true });
+  if (A.seas) { const os = baseOpts(L, { static: true }); os.plugins.legend.display = false; os.scales.y.ticks.callback = v => Math.round(v); os.scales.y.suggestedMin = Math.max(0, Math.min(...A.seas.idx) * 100 - 15); mkChart("r-c-seas", { type: "bar", data: { labels: A.seas.labels, datasets: [{ label: "Index", data: A.seas.idx.map(v => v * 100), backgroundColor: A.seas.idx.map(v => v >= 1 ? L.accent : L.ink2), borderRadius: 3 }] }, options: os }); }
+  $("#r-pdf").addEventListener("click", () => exportWith(exportPdf));
+  $("#r-xlsx").addEventListener("click", () => exportWith(exportXlsx));
+  $("#r-csv").addEventListener("click", () => exportWith(exportCsv));
+  $("#r-html").addEventListener("click", () => exportWith(exportHtml));
+  $("#r-ai")?.addEventListener("click", writeCommentary);
+}
+const baseName = () => (S.source.replace(/\.[^.]+$/, "") || "sales").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) + " forecast";
+async function exportWith(fn) {
+  const m = $("#r-msg");
+  try { m.textContent = "Preparing file…"; const r = await fn(); m.textContent = r === "saved" ? "Saved." : ""; }
+  catch (e) { console.error(e); m.textContent = e?.code === "declined" ? "" : e?.code === "rate_limited" ? "A save prompt is already open." : (e?.message || "The file couldn't be created."); }
+}
+async function save(filename, data) { const r = await S.dl.save({ filename, data }); return r.status; }
+function exportCsv() {
+  const fc = S.fc, q = v => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const rows = [["Period", "Forecast", "Low 80%", "High 80%", "Low 95%", "High 95%"], ...fc.point.map((v, i) => [fc.labels[i], v, fc.lo80[i], fc.hi80[i], fc.lo95[i], fc.hi95[i]].map(x => typeof x === "number" ? x.toFixed(2) : x))];
+  return save(baseName() + ".csv", "\uFEFF" + rows.map(r => r.map(c => q(String(c))).join(",")).join("\n"));
+}
+function exportXlsx() {
+  const ds = S.ds, fc = S.fc, A = S.A, su = S.suite, wb = XLSX.utils.book_new(), T = reportTables();
+  const add = (name, aoa, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa); if (widths) ws["!cols"] = widths.map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
+  const r2d = v => v == null || !isFinite(v) ? null : Math.round(v * 100) / 100;
+  add("Summary", [["Sales forecast report"], [S.source], [], ["Metric", "Value"], ...T.kpis, [], ["Insights"], ...buildInsights().map(i => [i.t])].concat(S.ai ? [[], ["Analyst commentary"], ...S.ai.split("\n").filter(Boolean).map(l => [l.replace(/^#+\s*/, "").replace(/\*\*/g, "")])] : []), [42, 28]);
+  add("Forecast", [["Period", "Forecast", "Low 80%", "High 80%", "Low 95%", "High 95%"], ...fc.point.map((v, i) => [fc.labels[i], r2d(v), r2d(fc.lo80[i]), r2d(fc.hi80[i]), r2d(fc.lo95[i]), r2d(fc.hi95[i])])], [18, 14, 14, 14, 14, 14]);
+  add("History", [["Period", "Sales", "Model fit", "Moving average", "Trend", "Rows", "Filled"].concat(ds.qty ? ["Units"] : []), ...ds.y.map((v, i) => [ds.labels[i], r2d(v), r2d(fc.fitted[i]), r2d(A.ma[i]), r2d(A.trend[i]), ds.cnt[i], ds.filled[i] ? "yes" : ""].concat(ds.qty ? [r2d(ds.qty[i])] : []))], [18, 14, 14, 14, 14, 8, 8, 10]);
+  add("Models", [["Rank", "Model", "Accuracy %", "Average miss", "RMSE", "Bias %", "Settings"], ...su.ranking.map((k, i) => { const r = su.ev.res[k]; return [i + 1, NAMES[k], isFinite(r.wape) ? r2d((1 - r.wape) * 100) : null, r2d(r.mae), r2d(r.rmse), r2d(r.bias * 100), su.fits[k].params || ""]; })], [6, 32, 12, 14, 14, 10, 40]);
+  if (A.seas) add("Seasonality", [["Position", "Index (100 = average)"], ...A.seas.labels.map((l, i) => [l, r2d(A.seas.idx[i] * 100)])], [12, 22]);
+  const C = S.map.cat >= 0 ? catAnalysis(S.map.cat) : null;
+  if (C) add("Breakdown", [[C.name, "Total", "Share %", "Growth %"], ...C.items.map(i => [i.name, r2d(i.total), r2d(i.share * 100), i.growth == null ? null : r2d(i.growth * 100)])], [30, 14, 10, 10]);
+  add("Unusual periods", [["Period", "Actual", "Expected", "Difference", "Severity"], ...A.anoms.map(a => [ds.labels[a.i], r2d(ds.y[a.i]), r2d(A.expected[a.i]), r2d(a.r), r2d(Math.abs(a.z))])], [18, 14, 14, 14, 10]);
+  const q = ds.q; add("Data quality", [["Check", "Count"], ["Rows in file", q.rows], ["Rows used", q.used], ["Rows without a usable date", q.badDate], ["Rows without a number", q.badValue], ["Exact duplicate rows", q.dup], ["Negative amounts", q.negative], ["Empty periods filled", q.gaps], ["Incomplete periods left out", q.dropped.join(", ") || 0]], [32, 20]);
+  const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  return save(baseName() + ".xlsx", new Blob([out]));
+}
+function chartImg(id) { const c = document.getElementById(id); return c ? c.toDataURL("image/png") : null; }
+function exportHtml() {
+  const sheet = $("#sheet").cloneNode(true);
+  sheet.querySelectorAll("canvas").forEach(c => { const src = chartImg(c.id); const img = document.createElement("img"); img.src = src; img.alt = "Chart"; img.style.cssText = "width:100%;height:auto"; c.parentNode.replaceWith(img); });
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sales forecast report</title><style>body{font-family:"Segoe UI",system-ui,sans-serif;color:#15233B;background:#fff;margin:0;line-height:1.55}article{max-width:880px;margin:0 auto;padding:40px 24px}h1{font-size:2rem;margin:0 0 6px}h2{font-size:1.2rem;margin:28px 0 8px;padding-top:14px;border-top:1px solid #DCE2E0}.meta{color:#4F5E73;font-size:.9rem}table{border-collapse:collapse;width:100%;font-size:.88rem;margin:8px 0}th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #E3E8E6}th{color:#4F5E73}.n{text-align:right}.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.kgrid div{background:#F3F6F5;border-radius:8px;padding:10px 12px}.kgrid b{display:block;font-size:1.15rem}.kgrid span{font-size:.78rem;color:#4F5E73}.tablewrap{overflow-x:auto}</style></head><body><article>${sheet.innerHTML}</article></body></html>`;
+  return save(baseName() + ".html", html);
+}
+async function exportPdf() {
+  await loadScript(JSPDF); await loadScript(AUTOTABLE);
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "pt", format: "a4" });
+  S.pdfMode = true;
+  try {
+    const T = reportTables(), ds = S.ds, fc = S.fc, A = S.A, W = 515, X = 40; let y = 50;
+    const ink = [21, 35, 59], muted = [79, 94, 115];
+    const room = h => { if (y + h > 800) { doc.addPage(); y = 50; } };
+    const h2 = t => { room(40); y += 10; doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...ink); doc.text(t, X, y); y += 16; };
+    const para = (t, size = 10, color = ink) => { doc.setFont("helvetica", "normal"); doc.setFontSize(size); doc.setTextColor(...color); for (const ln of doc.splitTextToSize(t.replace(/[–—]/g, "-").replace(/[±]/g, "+/-"), W)) { room(14); doc.text(ln, X, y); y += size * 1.4; } y += 4; };
+    const table = (head, body) => { doc.autoTable({ head: [head], body, startY: y, margin: { left: X, right: X }, styles: { fontSize: 8.5, cellPadding: 4, textColor: ink }, headStyles: { fillColor: ink, textColor: 255 }, alternateRowStyles: { fillColor: [244, 247, 246] } }); y = doc.lastAutoTable.finalY + 12; };
+    const img = (id, h) => { const d = chartImg(id); if (!d) return; room(h + 8); doc.addImage(d, "PNG", X, y, W, h); y += h + 10; };
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(...ink); doc.text("Sales forecast report", X, y); y += 20;
+    para(`${S.source}  |  ${ds.labels[0]} to ${ds.labels[A.n - 1]}  |  ${units(A.n, ds.gran)}  |  prepared ${new Date().toLocaleDateString("en-GB")}`, 9, muted);
+    h2("Summary"); buildInsights().forEach(i => para("- " + i.t, 9.5));
+    h2("Key figures"); table(["Metric", "Value"], T.kpis);
+    h2("Forecast"); img("r-c-fc", 230); table(["Period", "Forecast", "80% low", "80% high", "95% low", "95% high"], T.forecast);
+    h2("Model accuracy"); table(["Rank", "Model", "Accuracy", "Average miss", "Bias"], T.models);
+    if (A.seas) { h2("Seasonality"); img("r-c-seas", 170); }
+    if (T.cats) { h2("Sales by " + T.catName.toLowerCase()); table([T.catName, "Total", "Share", "Growth"], T.cats); }
+    if (T.anoms.length) { h2("Unusual periods"); table(["Period", "Actual", "Expected", "Difference"], T.anoms); }
+    if (S.ai) { h2("Analyst commentary"); S.ai.split("\n").filter(l => l.trim()).forEach(l => { const hd = /^#+\s*/.test(l); para(l.replace(/^#+\s*/, "").replace(/\*\*/g, ""), hd ? 11 : 9.5); }); }
+    const pages = doc.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(...muted); doc.text(`Salescast  |  page ${p} of ${pages}`, X, 820); }
+    return await save(baseName() + ".pdf", doc.output("blob"));
+  } finally { S.pdfMode = false; }
+}
+
+/* ---------- sample data ---------- */
+function sampleAoa() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const P = [
+    ["Trail running shoes", 74, 3, m => 1 + .35 * Math.cos((m - 4.5) / 12 * 2 * Math.PI)],
+    ["Rain jacket", 96, 2, m => 1 + .7 * Math.cos((m - 11) / 12 * 2 * Math.PI)],
+    ["Insulated bottle", 21, 6, m => 1 + .5 * Math.cos((m - 6.5) / 12 * 2 * Math.PI)],
+    ["Daypack 22L", 52, 2.4, m => 1 + .3 * Math.cos((m - 6) / 12 * 2 * Math.PI)],
+    ["Merino socks", 14, 8, m => 1 + .4 * Math.cos(m / 12 * 2 * Math.PI)]
+  ];
+  const R = [["North", 1], ["South", .8], ["West", 1.15]];
+  const rows = [["Order date", "Product", "Region", "Units", "Revenue"]];
+  for (let t = Date.UTC(2022, 0, 1); t <= Date.UTC(2025, 8, 30); t += DAY) {
+    const d = new Date(t), mo = d.getUTCMonth(), dow = d.getUTCDay(), mi = (d.getUTCFullYear() - 2022) * 12 + mo;
+    const hol = mo === 10 ? 1.15 : mo === 11 ? 1.35 : 1, wk = dow === 0 || dow === 6 ? 1.35 : dow === 1 ? .85 : 1;
+    const promo = t >= Date.UTC(2024, 10, 22) && t <= Date.UTC(2024, 10, 30) ? 2.6 : 1;
+    const ds = d.toISOString().slice(0, 10);
+    for (const [name, price, base, sf] of P) for (const [reg, rw] of R) {
+      const u = Math.round(base * sf(mo) * hol * wk * rw * promo * (1 + .012 * mi) * (.55 + .9 * rnd()));
+      if (u > 0) rows.push([ds, name, reg, u, Math.round(u * price * (.94 + .1 * rnd()) * 100) / 100]);
+    }
+  }
+  return rows;
+}
+
+/* ---------- events ---------- */
+const fi = $("#fileInput"), drop = $("#drop");
+fi.addEventListener("change", () => { if (fi.files[0]) handleFile(fi.files[0]); fi.value = ""; });
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fi.click(); } });
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer?.files?.[0]; if (f) handleFile(f); });
+$("#sampleBtn").addEventListener("click", async () => {
+  busy(true, "Building sample data"); await tick();
+  S.source = "Sample: outdoor gear store.csv"; S.kind = "csv"; S.sheets = null; S.opts.currency = S.opts.currency || "$";
+  ingestAoa(sampleAoa()); await runAll();
+});
+$("#pasteBtn").addEventListener("click", () => { $("#pasteBox").hidden = !$("#pasteBox").hidden; $("#pasteText").focus(); });
+$("#pasteGo").addEventListener("click", async () => {
+  const t = $("#pasteText").value; const msg = $("#startMsg");
+  if (!t.trim()) { msg.className = "msg err"; msg.textContent = "Paste a table first, including its header row."; return; }
+  try { S.source = "Pasted table"; S.kind = "paste"; S.sheets = null; ingestAoa(parseDelimited(t)); await runAll(); }
+  catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+});
+$("#newFile").addEventListener("click", () => { showStart(); $("#startMsg").textContent = ""; fi.click(); });
+$("#currency").addEventListener("change", e => { S.opts.currency = e.target.value; renderTab(S.tab, true); });
+$$("#tabs button").forEach(b => b.addEventListener("click", () => renderTab(b.dataset.tab)));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (S.fc) renderTab(S.tab, true); });
+new MutationObserver(() => { if (S.fc) renderTab(S.tab, true); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+if (window.Chart) { Chart.defaults.font.family = FONT; }
+
+/* ---------- runtime capabilities ---------- */
+(async () => {
+  if (!window.claude?.use) return;
+  try { S.dl = await claude.use("downloads"); } catch (e) { S.dl = null; }
+  try { S.sample = await claude.use("sample"); } catch (e) { S.sample = null; }
+  if (S.fc && (S.tab === "report" || S.tab === "overview")) renderTab(S.tab, true);
+})();
+</script>
+</body>
+</html>
